@@ -69,6 +69,7 @@ const WETNESS_LABELS = {
 const GRAPHIC_LABELS = {
   "clear-night": "Klar nat",
   cloudy: "Overskyet",
+  exceptional: "Ekstremt vejr",
   fog: "Tåge",
   hail: "Hagl",
   lightning: "Lyn",
@@ -81,6 +82,23 @@ const GRAPHIC_LABELS = {
   sunny: "Sol",
   windy: "Blæsende",
   "windy-variant": "Blæsende"
+};
+const WEATHER_ICONS = {
+  "clear-night": "mdi:weather-night",
+  cloudy: "mdi:weather-cloudy",
+  exceptional: "mdi:alert-circle-outline",
+  fog: "mdi:weather-fog",
+  hail: "mdi:weather-hail",
+  lightning: "mdi:weather-lightning",
+  "lightning-rainy": "mdi:weather-lightning-rainy",
+  partlycloudy: "mdi:weather-partly-cloudy",
+  pouring: "mdi:weather-pouring",
+  rainy: "mdi:weather-rainy",
+  snowy: "mdi:weather-snowy",
+  "snowy-rainy": "mdi:weather-snowy-rainy",
+  sunny: "mdi:weather-sunny",
+  windy: "mdi:weather-windy",
+  "windy-variant": "mdi:weather-windy-variant"
 };
 const AI_PROVIDERS = {
   home_assistant: "Home Assistant Assist",
@@ -611,6 +629,7 @@ class EcowittWs90Card extends HTMLElement {
 
     return {
       condition,
+      icon: WEATHER_ICONS[condition] || "mdi:weather-partly-cloudy",
       entityId: configuredState?.entity_id,
       label: GRAPHIC_LABELS[condition] || sentenceCase(condition),
       source: configuredState ? configuredState.attributes?.friendly_name || configuredState.entity_id : "WS-90"
@@ -688,19 +707,8 @@ class EcowittWs90Card extends HTMLElement {
 
     return `
       <button class="pirate-weather ${conditionClass}" ${entityDataAttr(graphic.entityId)}>
-        <div class="pirate-sky" aria-hidden="true">
-          <span class="pirate-sun"></span>
-          <span class="pirate-cloud cloud-one"></span>
-          <span class="pirate-cloud cloud-two"></span>
-          <span class="pirate-rain rain-one"></span>
-          <span class="pirate-rain rain-two"></span>
-          <span class="pirate-rain rain-three"></span>
-          <span class="pirate-ship">
-            <span class="ship-sail"></span>
-            <span class="ship-hull"></span>
-          </span>
-          <span class="pirate-wave wave-one"></span>
-          <span class="pirate-wave wave-two"></span>
+        <div class="ha-weather-animation" aria-hidden="true">
+          <ha-icon class="ha-weather-condition-icon" icon="${escapeHtml(graphic.icon)}"></ha-icon>
         </div>
         <div class="pirate-copy">
           <strong>PirateWeather</strong>
@@ -1029,177 +1037,70 @@ class EcowittWs90Card extends HTMLElement {
       }
 
       .pirate-weather {
+        align-items: center;
         display: grid;
-        gap: calc(10px * var(--scale));
-        grid-template-columns: minmax(calc(100px * var(--scale)), 0.85fr) minmax(0, 1fr);
-        min-height: calc(86px * var(--scale));
+        gap: calc(9px * var(--scale));
+        grid-template-columns: calc(56px * var(--scale)) minmax(0, 1fr);
+        min-height: calc(66px * var(--scale));
         overflow: hidden;
-        padding: calc(8px * var(--scale));
+        padding: calc(8px * var(--scale)) calc(10px * var(--scale));
         position: relative;
         text-align: left;
       }
 
-      .pirate-sky {
-        background: linear-gradient(180deg, rgba(93, 177, 212, 0.22), rgba(0, 124, 137, 0.08));
-        border-radius: calc(6px * var(--scale));
-        min-height: calc(70px * var(--scale));
+      .ha-weather-animation {
+        align-items: center;
+        background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, var(--card-background-color, #fff));
+        border-radius: calc(8px * var(--scale));
+        display: grid;
+        height: calc(52px * var(--scale));
+        justify-items: center;
         overflow: hidden;
         position: relative;
+        width: calc(52px * var(--scale));
       }
 
-      .pirate-sun,
-      .pirate-cloud,
-      .pirate-rain,
-      .pirate-ship,
-      .pirate-wave {
-        position: absolute;
-      }
-
-      .pirate-sun {
-        background: #f7c948;
-        border-radius: 50%;
-        height: calc(22px * var(--scale));
-        left: calc(12px * var(--scale));
-        top: calc(10px * var(--scale));
-        width: calc(22px * var(--scale));
-      }
-
-      .pirate-cloud {
-        animation: cloud-drift 5.5s ease-in-out infinite alternate;
-        background: rgba(255, 255, 255, 0.88);
-        border-radius: calc(999px * var(--scale));
-        height: calc(12px * var(--scale));
-        top: calc(18px * var(--scale));
+      .ha-weather-condition-icon {
+        animation: weather-icon-float 3.4s ease-in-out infinite;
+        color: var(--state-icon-color, var(--primary-color, #03a9f4));
+        font-size: calc(34px * var(--scale));
+        height: calc(38px * var(--scale));
+        line-height: 1;
+        position: relative;
         width: calc(38px * var(--scale));
       }
 
-      .pirate-cloud::before,
-      .pirate-cloud::after {
-        background: inherit;
-        border-radius: 50%;
-        content: "";
-        position: absolute;
+      .condition-sunny .ha-weather-condition-icon,
+      .condition-clear-night .ha-weather-condition-icon {
+        animation: weather-icon-spin 10s linear infinite;
+        color: #f7b731;
       }
 
-      .pirate-cloud::before {
-        height: calc(18px * var(--scale));
-        left: calc(7px * var(--scale));
-        top: calc(-8px * var(--scale));
-        width: calc(18px * var(--scale));
+      .condition-cloudy .ha-weather-condition-icon,
+      .condition-partlycloudy .ha-weather-condition-icon,
+      .condition-fog .ha-weather-condition-icon {
+        animation: weather-icon-drift 4.2s ease-in-out infinite;
       }
 
-      .pirate-cloud::after {
-        height: calc(14px * var(--scale));
-        right: calc(6px * var(--scale));
-        top: calc(-5px * var(--scale));
-        width: calc(14px * var(--scale));
+      .condition-rainy .ha-weather-condition-icon,
+      .condition-pouring .ha-weather-condition-icon,
+      .condition-hail .ha-weather-condition-icon,
+      .condition-snowy .ha-weather-condition-icon,
+      .condition-snowy-rainy .ha-weather-condition-icon {
+        animation: weather-icon-drop 1.15s ease-in-out infinite;
+        color: #4f8fc9;
       }
 
-      .cloud-one {
-        left: calc(42px * var(--scale));
+      .condition-lightning .ha-weather-condition-icon,
+      .condition-lightning-rainy .ha-weather-condition-icon,
+      .condition-exceptional .ha-weather-condition-icon {
+        animation: weather-icon-pulse 1.1s ease-in-out infinite;
+        color: #e3a008;
       }
 
-      .cloud-two {
-        animation-delay: -1.4s;
-        left: calc(74px * var(--scale));
-        opacity: 0.72;
-        top: calc(30px * var(--scale));
-        transform: scale(0.78);
-      }
-
-      .pirate-ship {
-        animation: ship-rock 2.8s ease-in-out infinite;
-        bottom: calc(16px * var(--scale));
-        height: calc(28px * var(--scale));
-        left: 50%;
-        transform-origin: 50% 100%;
-        width: calc(48px * var(--scale));
-      }
-
-      .ship-sail {
-        border-bottom: calc(26px * var(--scale)) solid rgba(255, 255, 255, 0.86);
-        border-right: calc(18px * var(--scale)) solid transparent;
-        display: block;
-        height: 0;
-        left: calc(16px * var(--scale));
-        position: absolute;
-        top: 0;
-        width: 0;
-      }
-
-      .ship-hull {
-        background: color-mix(in srgb, var(--primary-color, #03a9f4) 52%, #1d1d1f);
-        border-radius: 0 0 calc(20px * var(--scale)) calc(20px * var(--scale));
-        bottom: 0;
-        display: block;
-        height: calc(10px * var(--scale));
-        left: 0;
-        position: absolute;
-        width: calc(46px * var(--scale));
-      }
-
-      .pirate-wave {
-        animation: wave-slide 2.2s linear infinite;
-        border-top: calc(2px * var(--scale)) solid color-mix(in srgb, var(--primary-color, #03a9f4) 66%, transparent);
-        border-radius: 50%;
-        bottom: calc(9px * var(--scale));
-        height: calc(10px * var(--scale));
-        left: calc(-12px * var(--scale));
-        width: calc(72px * var(--scale));
-      }
-
-      .wave-two {
-        animation-delay: -1.1s;
-        bottom: calc(4px * var(--scale));
-        left: calc(38px * var(--scale));
-        opacity: 0.68;
-      }
-
-      .pirate-rain {
-        animation: rain-fall 0.9s linear infinite;
-        background: color-mix(in srgb, var(--primary-color, #03a9f4) 64%, transparent);
-        height: calc(18px * var(--scale));
-        opacity: 0;
-        top: calc(22px * var(--scale));
-        width: calc(2px * var(--scale));
-      }
-
-      .rain-one {
-        left: 32%;
-      }
-
-      .rain-two {
-        animation-delay: -0.3s;
-        left: 50%;
-      }
-
-      .rain-three {
-        animation-delay: -0.6s;
-        left: 68%;
-      }
-
-      .condition-rainy .pirate-rain,
-      .condition-pouring .pirate-rain,
-      .condition-lightning-rainy .pirate-rain,
-      .condition-snowy-rainy .pirate-rain {
-        opacity: 0.9;
-      }
-
-      .condition-cloudy .pirate-sun,
-      .condition-rainy .pirate-sun,
-      .condition-pouring .pirate-sun,
-      .condition-fog .pirate-sun {
-        opacity: 0.35;
-      }
-
-      .condition-sunny .pirate-cloud,
-      .condition-clear-night .pirate-cloud {
-        opacity: 0.28;
-      }
-
-      .condition-windy .pirate-ship,
-      .condition-windy-variant .pirate-ship {
-        animation-duration: 1.4s;
+      .condition-windy .ha-weather-condition-icon,
+      .condition-windy-variant .ha-weather-condition-icon {
+        animation: weather-icon-wind 1.8s ease-in-out infinite;
       }
 
       .pirate-copy {
@@ -1370,10 +1271,6 @@ class EcowittWs90Card extends HTMLElement {
           padding: calc(12px * var(--scale));
         }
 
-        .pirate-weather {
-          grid-template-columns: 1fr;
-        }
-
         .quick-grid,
         .field-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1392,44 +1289,70 @@ class EcowittWs90Card extends HTMLElement {
         }
       }
 
-      @keyframes cloud-drift {
-        from {
-          transform: translateX(calc(-4px * var(--scale)));
-        }
-
-        to {
-          transform: translateX(calc(8px * var(--scale)));
-        }
-      }
-
-      @keyframes ship-rock {
+      @keyframes weather-icon-float {
         0%,
         100% {
-          transform: translateX(-50%) rotate(-3deg);
+          transform: translateY(0);
         }
 
         50% {
-          transform: translateX(-50%) rotate(4deg);
+          transform: translateY(calc(-2px * var(--scale)));
         }
       }
 
-      @keyframes wave-slide {
+      @keyframes weather-icon-spin {
         from {
-          transform: translateX(0);
+          transform: rotate(0deg);
         }
 
         to {
-          transform: translateX(calc(18px * var(--scale)));
+          transform: rotate(360deg);
         }
       }
 
-      @keyframes rain-fall {
-        from {
-          transform: translateY(calc(-10px * var(--scale)));
+      @keyframes weather-icon-drift {
+        0%,
+        100% {
+          transform: translateX(calc(-3px * var(--scale)));
         }
 
-        to {
-          transform: translateY(calc(30px * var(--scale)));
+        50% {
+          transform: translateX(calc(4px * var(--scale)));
+        }
+      }
+
+      @keyframes weather-icon-drop {
+        0%,
+        100% {
+          transform: translateY(calc(-2px * var(--scale)));
+        }
+
+        50% {
+          transform: translateY(calc(3px * var(--scale)));
+        }
+      }
+
+      @keyframes weather-icon-pulse {
+        0%,
+        100% {
+          filter: drop-shadow(0 0 0 rgba(247, 183, 49, 0));
+          transform: scale(1);
+        }
+
+        50% {
+          filter: drop-shadow(0 0 calc(8px * var(--scale)) rgba(247, 183, 49, 0.55));
+          transform: scale(1.08);
+        }
+      }
+
+      @keyframes weather-icon-wind {
+        0%,
+        100% {
+          transform: translateX(calc(-4px * var(--scale)));
+        }
+
+        50% {
+          transform: translateX(calc(5px * var(--scale)));
         }
       }
     `;
@@ -1502,6 +1425,7 @@ function normalizeWeatherCondition(value) {
     cloudy: "cloudy",
     fog: "fog",
     hail: "hail",
+    exceptional: "exceptional",
     lightning: "lightning",
     "lightning-rainy": "lightning-rainy",
     partlycloudy: "partlycloudy",

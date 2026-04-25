@@ -8,7 +8,7 @@ The card is dependency-free JavaScript. Build output is written to `dist/ecowitt
 
 - Compact summary view for the WS-90 sensors shown by Home Assistant.
 - Container-based scaling so text, icons and spacing shrink with narrower dashboard cards.
-- Optional animated PirateWeather graphic driven by a selected weather entity or WS-90 data.
+- Optional animated Home Assistant weather icon driven by a selected PirateWeather/weather entity or WS-90 data.
 - Optional AI summary text with selectable provider label and summary entity.
 - Beaufort score and Danish wind-force name below the wind speed.
 - Derived compass direction from the numeric `Direction` sensor.
