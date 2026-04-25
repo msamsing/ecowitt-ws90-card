@@ -1,0 +1,26 @@
+{
+  "name": "ecowitt-ws90-card",
+  "version": "0.1.0",
+  "description": "A Home Assistant Lovelace card for Ecowitt WS-90 weather station data.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node --check src/ecowitt-ws90-card.js && node --check scripts/build.mjs"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "ecowitt",
+    "ws90",
+    "weather-station"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msamsing/ecowitt-ws90-card.git"
+  },
+  "bugs": {
+    "url": "https://github.com/msamsing/ecowitt-ws90-card/issues"
+  },
+  "homepage": "https://github.com/msamsing/ecowitt-ws90-card#readme",
+  "license": "MIT"
+}

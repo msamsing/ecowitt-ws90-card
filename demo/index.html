@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ecowitt WS-90 Card Demo</title>
+    <style>
+      :root {
+        --primary-color: #007c89;
+        --primary-text-color: #202124;
+        --secondary-text-color: #65717b;
+        --secondary-background-color: #f5f8fa;
+        --divider-color: #d6e0e5;
+        --card-background-color: #ffffff;
+      }
+
+      body {
+        background: #e8eef2;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        padding: 32px;
+      }
+
+      main {
+        margin: 0 auto;
+        max-width: 430px;
+      }
+
+      ha-card {
+        border-radius: 8px;
+        box-shadow: 0 12px 36px rgba(31, 45, 55, 0.18);
+        display: block;
+      }
+
+      ha-icon {
+        display: inline-flex;
+        height: 24px;
+        width: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <ecowitt-ws90-card></ecowitt-ws90-card>
+    </main>
+
+    <script type="module">
+      if (!customElements.get("ha-card")) {
+        customElements.define("ha-card", class HaCard extends HTMLElement {});
+      }
+
+      if (!customElements.get("ha-icon")) {
+        customElements.define("ha-icon", class HaIcon extends HTMLElement {
+        static get observedAttributes() {
+          return ["icon"];
+        }
+
+        connectedCallback() {
+          this.render();
+        }
+
+        attributeChangedCallback() {
+          this.render();
+        }
+
+        render() {
+          this.textContent = iconFor(this.getAttribute("icon"));
+        }
+        });
+      }
+
+      await import("../src/ecowitt-ws90-card.js");
+      await customElements.whenDefined("ecowitt-ws90-card");
+
+      const card = document.querySelector("ecowitt-ws90-card");
+      card.setConfig({
+        title: "Ecowitt WS-90",
+        station_name: "Garden weather",
+        entity_prefix: "ws90",
+        show_missing: false,
+        show_pirateweather_graphic: true,
+        pirateweather_entity: "weather.pirateweather",
+        show_ai_summary: true,
+        ai_provider: "openai",
+        ai_summary_entity: "sensor.ws90_ai_summary"
+      });
+
+      card.hass = {
+        states: {
+          "weather.pirateweather": {
+            entity_id: "weather.pirateweather",
+            state: "partlycloudy",
+            attributes: {
+              friendly_name: "PirateWeather"
+            }
+          },
+          "sensor.ws90_ai_summary": sensor(
+            "Tørt og køligt vejr med svag vind fra nordøst. Ingen akut regnindikation; UV er lav, og belysningsstyrken passer til gråvejr eller lav sol.",
+            "",
+            "WS90 AI summary"
+          ),
+          "sensor.ws90_illuminance": sensor("8.260,0", "lx", "Belysningsstyrke"),
+          "sensor.ws90_dew_point": sensor("1,7", "°C", "Dew point"),
+          "sensor.ws90_direction": sensor("43,0", "°", "Direction"),
+          "sensor.ws90_wetness": sensor("Dry", "", "Fugtighed"),
+          "sensor.ws90_wind_speed": sensor("1,70", "m/s", "Hastighed"),
+          "sensor.ws90_wind_gust": sensor("1,80", "m/s", "Hastighed"),
+          "sensor.ws90_humidity": sensor("55", "%", "Luftfugtighed"),
+          "sensor.ws90_pressure": sensor("1.004,40", "mbar", "Lufttryk"),
+          "sensor.ws90_rain": sensor("9", "mm", "Nedbør"),
+          "sensor.ws90_voltage": sensor("5", "V", "Spænding"),
+          "sensor.ws90_temperature": sensor("10,3", "°C", "Temperatur"),
+          "sensor.ws90_uv_index": sensor("0,0", "", "UV Index")
+        }
+      };
+
+      function sensor(state, unit, friendlyName) {
+        return {
+          entity_id: `sensor.${friendlyName.toLowerCase().replaceAll(" ", "_")}`,
+          state,
+          attributes: {
+            unit_of_measurement: unit,
+            friendly_name: friendlyName
+          }
+        };
+      }
+
+      function iconFor(icon) {
+        const icons = {
+          "mdi:thermometer": "T",
+          "mdi:thermometer-lines": "T",
+          "mdi:water-percent": "%",
+          "mdi:water-off": "∅",
+          "mdi:water-check": "✓",
+          "mdi:water-thermometer": "D",
+          "mdi:gauge": "P",
+          "mdi:weather-windy": "W",
+          "mdi:weather-dust": "G",
+          "mdi:eye": "D",
+          "mdi:sine-wave": "~",
+          "mdi:compass-outline": "C",
+          "mdi:navigation-variant-outline": "N",
+          "mdi:navigation": "↑",
+          "mdi:weather-rainy": "R",
+          "mdi:sun-wireless-outline": "UV",
+          "mdi:brightness-5": "L"
+        };
+
+        return icons[icon] || "•";
+      }
+    </script>
+  </body>
+</html>
