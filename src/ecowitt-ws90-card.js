@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.4";
+const CARD_VERSION = "0.1.5";
 
 const FIELD_DEFINITIONS = [
   {
@@ -232,6 +232,12 @@ const SEASON_LABELS = {
   spring: "Forår",
   summer: "Sommer",
   autumn: "Efterår"
+};
+const SEASON_DAYLIGHT = {
+  winter: { sunrise: 8.5, sunset: 16 },
+  spring: { sunrise: 5.5, sunset: 21 },
+  summer: { sunrise: 4.5, sunset: 22 },
+  autumn: { sunrise: 7, sunset: 18 }
 };
 const METRIC_STATUS_LABELS = {
   dew_point: "Dugpunkt",
@@ -1549,7 +1555,6 @@ class EcowittWs90Card extends HTMLElement {
       }
 
       .status-arrow {
-        color: #d93025;
         font-size: calc(13px * var(--scale));
         font-weight: 900;
         line-height: calc(10px * var(--scale));
@@ -1566,7 +1571,12 @@ class EcowittWs90Card extends HTMLElement {
       }
 
       .metric-status-high .status-arrow-high,
-      .metric-status-low .status-arrow-low,
+      .metric-status-low .status-arrow-low {
+        color: #d93025;
+        opacity: 1;
+        text-shadow: 0 0 calc(5px * var(--scale)) rgba(217, 48, 37, 0.32);
+      }
+
       .metric-status-normal .status-normal {
         opacity: 1;
       }
@@ -1931,8 +1941,9 @@ function metricIndicatorFor(metric, field) {
     return undefined;
   }
 
-  const season = getDanishSeason();
-  const range = SEASONAL_METRIC_RANGES[metric]?.[season.key];
+  const now = new Date();
+  const season = getDanishSeason(now);
+  const range = metricRangeForTime(metric, SEASONAL_METRIC_RANGES[metric]?.[season.key], season.key, now);
   const rawValue = numberFromState(field.state);
   let value = rawValue;
 
@@ -1954,12 +1965,15 @@ function metricIndicatorFor(metric, field) {
   const metricLabel = METRIC_STATUS_LABELS[metric] || metric;
   const optimalText = seasonalRangeText(range);
   const measuredText = metricValueText(value, range.unit);
+  const normalLabel = range.timeAdjusted
+    ? `${season.label} normal kl. ${timeLabel(now)}`
+    : `${season.label} normal`;
 
   return {
     metric,
     value,
     status,
-    label: `${metricLabel}: ${METRIC_STATUS_TEXT[status]}. ${season.label} optimal: ${optimalText}. Målt: ${measuredText}.`
+    label: `${metricLabel}: ${METRIC_STATUS_TEXT[status]}. ${normalLabel}: ${optimalText}. Målt: ${measuredText}.`
   };
 }
 
@@ -1979,6 +1993,70 @@ function getDanishSeason(date = new Date()) {
   }
 
   return { key: "autumn", label: SEASON_LABELS.autumn };
+}
+
+function metricRangeForTime(metric, range, seasonKey, date = new Date()) {
+  if (!range) {
+    return undefined;
+  }
+
+  const factor = daylightFactor(date, seasonKey);
+
+  if (metric === "illuminance") {
+    if (factor <= 0.03) {
+      return { ...range, min: 0, max: 500, timeAdjusted: true };
+    }
+
+    const minimum = Math.round(range.min * Math.max(0.04, factor * 0.45));
+    const maximum = Math.round(range.max * Math.max(0.08, factor));
+
+    return {
+      ...range,
+      min: Math.max(0, minimum),
+      max: Math.max(750, maximum),
+      timeAdjusted: true
+    };
+  }
+
+  if (metric === "uv_index") {
+    const uvFactor = Math.pow(factor, 1.8);
+
+    if (uvFactor <= 0.03) {
+      return { ...range, min: 0, max: 0.3, timeAdjusted: true };
+    }
+
+    return {
+      ...range,
+      min: roundToOneDecimal(Math.max(0, range.min * uvFactor * 0.5)),
+      max: roundToOneDecimal(Math.max(0.3, range.max * uvFactor)),
+      timeAdjusted: true
+    };
+  }
+
+  if (metric === "dew_point") {
+    const shift = roundToOneDecimal(-2 + factor * 2);
+
+    return {
+      ...range,
+      min: roundToOneDecimal(range.min + shift),
+      max: roundToOneDecimal(range.max + shift),
+      timeAdjusted: true
+    };
+  }
+
+  return range;
+}
+
+function daylightFactor(date, seasonKey) {
+  const daylight = SEASON_DAYLIGHT[seasonKey] || SEASON_DAYLIGHT.spring;
+  const hour = date.getHours() + date.getMinutes() / 60;
+
+  if (hour <= daylight.sunrise || hour >= daylight.sunset) {
+    return 0;
+  }
+
+  const progress = (hour - daylight.sunrise) / (daylight.sunset - daylight.sunrise);
+  return Math.sin(progress * Math.PI);
 }
 
 function seasonalStatusForValue(value, range) {
@@ -2021,6 +2099,14 @@ function metricValueText(value, unit) {
   const formatted = String(rounded).replace(".", ",");
 
   return unit ? `${formatted} ${unit}` : formatted;
+}
+
+function roundToOneDecimal(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function timeLabel(date) {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function rainChanceFromSummary(summary) {
