@@ -8,8 +8,9 @@ The card is dependency-free JavaScript. Build output is written to `dist/ecowitt
 
 - Compact summary view for the WS-90 sensors shown by Home Assistant.
 - Container-based scaling so text, icons and spacing shrink with narrower dashboard cards.
-- Optional animated Home Assistant weather icon driven by a selected PirateWeather/weather entity or WS-90 data.
+- Optional animated Home Assistant weather icon and weather description driven by a selected weather entity or WS-90 data.
 - Optional AI summary text with selectable provider label and summary entity.
+- Calculated rain chance from pressure, humidity, dew point and temperature.
 - Beaufort score and Danish wind-force name below the wind speed.
 - Derived compass direction from the numeric `Direction` sensor.
 - Click any populated tile to open Home Assistant's entity more-info dialog.
@@ -77,8 +78,8 @@ title: Ecowitt WS-90
 station_name: Garden weather
 show_missing: false
 scale: 1
-show_pirateweather_graphic: true
-pirateweather_entity: weather.pirateweather
+show_weather_description: true
+weather_entity: weather.forecast_home
 show_ai_summary: true
 ai_provider: openai
 ai_summary_entity: sensor.ws90_ai_summary
@@ -92,7 +93,6 @@ entities:
   wind_gust: sensor.ws90_wind_gust
   wind_bearing: sensor.ws90_direction
   rain: sensor.ws90_rain
-  voltage: sensor.ws90_voltage
   uv_index: sensor.ws90_uv_index
   illuminance: sensor.ws90_illuminance
 ```
@@ -123,8 +123,8 @@ The optional AI summary is display-only in the card. Create/update the selected 
 | `show_missing` | boolean | `false` | Show tiles for configured but unavailable sensors. |
 | `compact` | boolean | `false` | Use a tighter layout. |
 | `scale` | number | `1` | Manual text/icon scale multiplier from `0.5` to `1.2`; auto-scaling still applies when the card gets narrow. |
-| `show_pirateweather_graphic` | boolean | `false` | Show an animated PirateWeather-style graphic. |
-| `pirateweather_entity` | string | `""` | Optional weather entity used to drive the animation state. |
+| `show_weather_description` | boolean | `false` | Show the animated weather icon and weather description block. |
+| `weather_entity` | string | `""` | Optional weather entity used to drive the icon and description. |
 | `show_ai_summary` | boolean | `false` | Show the AI summary block. |
 | `ai_provider` | string | `home_assistant` | Provider label: `home_assistant`, `openai`, `anthropic`, `google`, `ollama`, or `custom`. |
 | `ai_summary_entity` | string | `""` | Entity containing summary text from your AI automation/integration. |

@@ -78,8 +78,8 @@
         station_name: "Garden weather",
         entity_prefix: "ws90",
         show_missing: false,
-        show_pirateweather_graphic: true,
-        pirateweather_entity: "weather.pirateweather",
+        show_weather_description: true,
+        weather_entity: "weather.forecast_home",
         show_ai_summary: true,
         ai_provider: "openai",
         ai_summary_entity: "sensor.ws90_ai_summary"
@@ -87,11 +87,11 @@
 
       card.hass = {
         states: {
-          "weather.pirateweather": {
-            entity_id: "weather.pirateweather",
+          "weather.forecast_home": {
+            entity_id: "weather.forecast_home",
             state: "partlycloudy",
             attributes: {
-              friendly_name: "PirateWeather"
+              friendly_name: "Vejrudsigt"
             }
           },
           "sensor.ws90_ai_summary": sensor(
@@ -108,7 +108,6 @@
           "sensor.ws90_humidity": sensor("55", "%", "Luftfugtighed"),
           "sensor.ws90_pressure": sensor("1.004,40", "mbar", "Lufttryk"),
           "sensor.ws90_rain": sensor("9", "mm", "Nedbør"),
-          "sensor.ws90_voltage": sensor("5", "V", "Spænding"),
           "sensor.ws90_temperature": sensor("10,3", "°C", "Temperatur"),
           "sensor.ws90_uv_index": sensor("0,0", "", "UV Index")
         }

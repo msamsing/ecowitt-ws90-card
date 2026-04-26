@@ -2,7 +2,7 @@
  * Ecowitt WS-90 Card
  * Home Assistant Lovelace custom card
  */
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.1.1";
 
 const FIELD_DEFINITIONS = [
   {
@@ -13,8 +13,7 @@ const FIELD_DEFINITIONS = [
       { key: "humidity", label: "Luftfugtighed", icon: "mdi:water-percent", suffixes: ["humidity", "outdoor_humidity", "luftfugtighed"] },
       { key: "dew_point", label: "Dugpunkt", icon: "mdi:water-thermometer", suffixes: ["dew_point", "dewpoint", "dugpunkt"] },
       { key: "pressure", label: "Lufttryk", icon: "mdi:gauge", suffixes: ["pressure", "air_pressure", "barometric_pressure", "relative_pressure", "lufttryk"] },
-      { key: "wetness", label: "Fugtighed", icon: "mdi:water-off", suffixes: ["wetness", "moisture", "rain_state", "fugtighed"] },
-      { key: "voltage", label: "Spænding", icon: "mdi:sine-wave", suffixes: ["voltage", "battery_voltage", "spaending", "spænding"] }
+      { key: "wetness", label: "Fugtighed", icon: "mdi:water-off", suffixes: ["wetness", "moisture", "rain_state", "fugtighed"] }
     ]
   },
   {
@@ -50,7 +49,6 @@ const SUMMARY_FIELD_KEYS = new Set([
   "dew_point",
   "pressure",
   "wetness",
-  "voltage",
   "wind_speed",
   "wind_gust",
   "wind_bearing",
@@ -104,6 +102,62 @@ const WEATHER_ICONS = {
   windy: "mdi:weather-windy",
   "windy-variant": "mdi:weather-windy-variant"
 };
+const WEATHER_ICON_LAYERS = {
+  "clear-night": [
+    { icon: "mdi:weather-night", className: "layer-main layer-moon" }
+  ],
+  cloudy: [
+    { icon: "mdi:weather-cloudy", className: "layer-main layer-cloud" }
+  ],
+  exceptional: [
+    { icon: "mdi:alert-circle-outline", className: "layer-main layer-alert" }
+  ],
+  fog: [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-fog-cloud" },
+    { icon: "mdi:weather-fog", className: "layer-main layer-fog" }
+  ],
+  hail: [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-hail", className: "layer-main layer-rain" }
+  ],
+  lightning: [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-lightning", className: "layer-main layer-lightning" }
+  ],
+  "lightning-rainy": [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-lightning-rainy", className: "layer-main layer-lightning" }
+  ],
+  partlycloudy: [
+    { icon: "mdi:weather-sunny", className: "layer-sun layer-back-sun" },
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-front-cloud" }
+  ],
+  pouring: [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-pouring", className: "layer-main layer-rain" }
+  ],
+  rainy: [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-rainy", className: "layer-main layer-rain" }
+  ],
+  snowy: [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-snowy", className: "layer-main layer-snow" }
+  ],
+  "snowy-rainy": [
+    { icon: "mdi:weather-cloudy", className: "layer-cloud layer-top-cloud" },
+    { icon: "mdi:weather-snowy-rainy", className: "layer-main layer-snow" }
+  ],
+  sunny: [
+    { icon: "mdi:weather-sunny", className: "layer-main layer-sun" }
+  ],
+  windy: [
+    { icon: "mdi:weather-windy", className: "layer-main layer-wind" }
+  ],
+  "windy-variant": [
+    { icon: "mdi:weather-windy-variant", className: "layer-main layer-wind" }
+  ]
+};
 const AI_PROVIDERS = {
   home_assistant: "Home Assistant Assist",
   openai: "OpenAI",
@@ -119,8 +173,8 @@ const CONFIG_LABELS = {
   scale: "Skalering",
   show_missing: "Vis manglende sensorer",
   compact: "Kompakt layout",
-  show_pirateweather_graphic: "Vis PirateWeather grafik",
-  pirateweather_entity: "PirateWeather entity",
+  show_weather_description: "Vis vejrbeskrivelse",
+  weather_entity: "Vejr entity",
   show_ai_summary: "Vis AI summary",
   ai_provider: "AI til tolkning",
   ai_summary_entity: "AI summary entity",
@@ -133,7 +187,6 @@ const CONFIG_LABELS = {
   humidity: "Luftfugtighed",
   pressure: "Lufttryk",
   rain: "Nedbør",
-  voltage: "Spænding",
   uv_index: "UV Index",
   illuminance: "Belysningsstyrke"
 };
@@ -143,7 +196,7 @@ const CONFIG_HELPERS = {
   wind_speed: "Vælg den normale hastighedssensor. Bruges også til Beaufort.",
   wind_gust: "Vælg den anden hastighedssensor, hvis den repræsenterer vindstød.",
   wind_bearing: "Vælg Direction-sensoren i grader. Kortet beregner kompasretningen ud fra denne.",
-  pirateweather_entity: "Valgfrit. Hvis valgt, styrer denne weather entity den animerede grafik.",
+  weather_entity: "Valgfrit. Hvis valgt, styrer denne weather entity vejrbeskrivelsen og det animerede ikon.",
   ai_provider: "Valget gemmes i kortets config og vises sammen med summary-teksten.",
   ai_summary_entity: "Vælg en entity som indeholder AI-teksten, fx en sensor eller input_text opdateret af en automation."
 };
@@ -157,7 +210,6 @@ const ENTITY_CONFIG_SCHEMA = [
   { name: "humidity", selector: { entity: { domain: "sensor" } } },
   { name: "pressure", selector: { entity: { domain: "sensor" } } },
   { name: "rain", selector: { entity: { domain: "sensor" } } },
-  { name: "voltage", selector: { entity: { domain: "sensor" } } },
   { name: "uv_index", selector: { entity: { domain: "sensor" } } },
   { name: "illuminance", selector: { entity: { domain: "sensor" } } }
 ];
@@ -178,6 +230,8 @@ const BEAUFORT_SCALE = [
   { score: 12, max: Infinity, name: "Orkan" }
 ];
 const CARD_TAG = "ecowitt-ws90-card";
+const LEGACY_SHOW_WEATHER_KEY = ["show", "pira", "teweather", "_graphic"].join("");
+const LEGACY_WEATHER_ENTITY_KEY = ["pira", "teweather", "_entity"].join("");
 
 class EcowittWs90Card extends HTMLElement {
   constructor() {
@@ -211,6 +265,16 @@ class EcowittWs90Card extends HTMLElement {
       throw new Error("Invalid configuration");
     }
 
+    const normalizedConfig = { ...config };
+
+    if (normalizedConfig.show_weather_description === undefined && config[LEGACY_SHOW_WEATHER_KEY] !== undefined) {
+      normalizedConfig.show_weather_description = config[LEGACY_SHOW_WEATHER_KEY];
+    }
+
+    if (!normalizedConfig.weather_entity && config[LEGACY_WEATHER_ENTITY_KEY]) {
+      normalizedConfig.weather_entity = config[LEGACY_WEATHER_ENTITY_KEY];
+    }
+
     this._config = {
       title: "Ecowitt WS-90",
       station_name: "Weather station",
@@ -221,12 +285,12 @@ class EcowittWs90Card extends HTMLElement {
       extra_entities: [],
       entity_prefix: "",
       scale: 1,
-      show_pirateweather_graphic: false,
-      pirateweather_entity: "",
+      show_weather_description: false,
+      weather_entity: "",
       show_ai_summary: false,
       ai_provider: "home_assistant",
       ai_summary_entity: "",
-      ...config
+      ...normalizedConfig
     };
 
     if (this.isConnected) {
@@ -264,7 +328,6 @@ class EcowittWs90Card extends HTMLElement {
         wind_gust: "sensor.ws90_wind_gust",
         wind_bearing: "sensor.ws90_direction",
         rain: "sensor.ws90_rain",
-        voltage: "sensor.ws90_voltage",
         illuminance: "sensor.ws90_illuminance",
         uv_index: "sensor.ws90_uv_index"
       }
@@ -318,8 +381,8 @@ class EcowittWs90Card extends HTMLElement {
               flatten: true,
               column_min_width: "220px",
               schema: [
-                { name: "show_pirateweather_graphic", selector: { boolean: {} } },
-                { name: "pirateweather_entity", selector: { entity: { domain: "weather" } } },
+                { name: "show_weather_description", selector: { boolean: {} } },
+                { name: "weather_entity", selector: { entity: { domain: "weather" } } },
                 { name: "show_ai_summary", selector: { boolean: {} } },
                 {
                   name: "ai_provider",
@@ -405,7 +468,8 @@ class EcowittWs90Card extends HTMLElement {
     const beaufort = beaufortFromState(summary.wind_speed.state);
     const windDirection = this._getWindDirectionSummary();
     const windRotation = this._getWindRotation();
-    const pirateWeather = this._getPirateWeatherGraphic(summary, wetness);
+    const weatherDescription = this._getWeatherDescription(summary, wetness);
+    const rainChance = this._getRainChance(summary);
     const aiSummary = this._getAiSummary(summary, wetness, beaufort, windDirection);
     const scale = this._getScale();
 
@@ -418,13 +482,12 @@ class EcowittWs90Card extends HTMLElement {
               <h2>${escapeHtml(this._config.title)}</h2>
               <p>${escapeHtml(this._config.station_name)}</p>
             </div>
-            <div class="badge">WS-90</div>
           </header>
 
           ${!hass ? this._renderEmptyState("Waiting for Home Assistant data") : ""}
 
           ${hass ? `
-            ${this._config.show_pirateweather_graphic ? this._renderPirateWeatherGraphic(pirateWeather) : ""}
+            ${this._config.show_weather_description ? this._renderWeatherDescription(weatherDescription) : ""}
 
             <section class="summary">
               <button class="weather-current" ${entityDataAttr(wetness.entityId)}>
@@ -460,7 +523,7 @@ class EcowittWs90Card extends HTMLElement {
               ${this._renderSummaryItem("Nedbør", summary.rain)}
               ${this._renderSummaryItem("UV", summary.uv_index)}
               ${this._renderSummaryItem("Belysningsstyrke", summary.illuminance)}
-              ${this._renderSummaryItem("Spænding", summary.voltage)}
+              ${this._renderSummaryItem("Regnchance", rainChance)}
             </div>
 
             <div class="sections">
@@ -544,7 +607,6 @@ class EcowittWs90Card extends HTMLElement {
       wind_bearing: this._formatField("wind_bearing"),
       rain: this._formatField("rain"),
       illuminance: this._formatField("illuminance"),
-      voltage: this._formatField("voltage"),
       uv_index: this._formatField("uv_index")
     };
   }
@@ -610,8 +672,8 @@ class EcowittWs90Card extends HTMLElement {
     return compassToDegrees(bearing.value);
   }
 
-  _getPirateWeatherGraphic(summary, wetness) {
-    const configuredState = this._getEntityState(this._config.pirateweather_entity);
+  _getWeatherDescription(summary, wetness) {
+    const configuredState = this._getEntityState(this._config.weather_entity);
     const rawState = String(configuredState?.state || "").trim().toLowerCase();
     const wetnessState = String(wetness.state?.state || "").trim().toLowerCase();
     const uv = numberFromState(summary.uv_index.state);
@@ -635,8 +697,30 @@ class EcowittWs90Card extends HTMLElement {
       condition,
       icon: WEATHER_ICONS[condition] || "mdi:weather-partly-cloudy",
       entityId: configuredState?.entity_id,
-      label: GRAPHIC_LABELS[condition] || sentenceCase(condition),
-      source: configuredState ? configuredState.attributes?.friendly_name || configuredState.entity_id : "WS-90"
+      label: GRAPHIC_LABELS[condition] || sentenceCase(condition)
+    };
+  }
+
+  _getRainChance(summary) {
+    const chance = rainChanceFromSummary(summary);
+
+    if (!Number.isFinite(chance)) {
+      return {
+        value: "—",
+        entityId: undefined,
+        state: undefined
+      };
+    }
+
+    return {
+      value: `${chance} %`,
+      entityId: undefined,
+      state: {
+        state: String(chance),
+        attributes: {
+          unit_of_measurement: "%"
+        }
+      }
     };
   }
 
@@ -706,20 +790,30 @@ class EcowittWs90Card extends HTMLElement {
     return Math.min(1.2, Math.max(0.5, scale));
   }
 
-  _renderPirateWeatherGraphic(graphic) {
+  _renderWeatherDescription(graphic) {
     const conditionClass = `condition-${escapeHtml(graphic.condition)}`;
 
     return `
-      <button class="pirate-weather ${conditionClass}" ${entityDataAttr(graphic.entityId)}>
+      <button class="weather-description ${conditionClass}" ${entityDataAttr(graphic.entityId)}>
         <div class="ha-weather-animation" aria-hidden="true">
-          <ha-icon class="ha-weather-condition-icon" icon="${escapeHtml(graphic.icon)}"></ha-icon>
+          ${this._renderWeatherIconLayers(graphic.condition)}
         </div>
-        <div class="pirate-copy">
-          <strong>PirateWeather</strong>
-          <span>${escapeHtml(graphic.label)} · ${escapeHtml(graphic.source)}</span>
+        <div class="weather-description-copy">
+          <span>Vejrbeskrivelse</span>
+          <strong>${escapeHtml(graphic.label)}</strong>
         </div>
       </button>
     `;
+  }
+
+  _renderWeatherIconLayers(condition) {
+    const layers = WEATHER_ICON_LAYERS[condition] || [
+      { icon: WEATHER_ICONS[condition] || "mdi:weather-partly-cloudy", className: "layer-main layer-cloud" }
+    ];
+
+    return layers
+      .map((layer) => `<ha-icon class="weather-icon-layer ${escapeHtml(layer.className)}" icon="${escapeHtml(layer.icon)}"></ha-icon>`)
+      .join("");
   }
 
   _renderAiSummary(summary) {
@@ -854,20 +948,6 @@ class EcowittWs90Card extends HTMLElement {
         color: var(--secondary-text-color, #727272);
         font-size: calc(12px * var(--scale));
         margin-top: calc(2px * var(--scale));
-      }
-
-      .badge {
-        align-items: center;
-        background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
-        border: 1px solid color-mix(in srgb, var(--primary-color, #03a9f4) 30%, transparent);
-        border-radius: calc(999px * var(--scale));
-        color: var(--primary-color, #03a9f4);
-        display: flex;
-        flex: 0 0 auto;
-        font-size: calc(11px * var(--scale));
-        font-weight: 700;
-        min-height: calc(24px * var(--scale));
-        padding: 0 calc(8px * var(--scale));
       }
 
       button {
@@ -1030,7 +1110,7 @@ class EcowittWs90Card extends HTMLElement {
         margin-top: calc(2px * var(--scale));
       }
 
-      .pirate-weather,
+      .weather-description,
       .ai-summary {
         background: var(--secondary-background-color, rgba(127, 127, 127, 0.08));
         border: 1px solid var(--divider-color, rgba(127, 127, 127, 0.2));
@@ -1040,91 +1120,142 @@ class EcowittWs90Card extends HTMLElement {
         width: 100%;
       }
 
-      .pirate-weather {
+      .weather-description {
         align-items: center;
         display: grid;
-        gap: calc(9px * var(--scale));
-        grid-template-columns: calc(56px * var(--scale)) minmax(0, 1fr);
-        min-height: calc(66px * var(--scale));
+        gap: calc(12px * var(--scale));
+        grid-template-columns: calc(78px * var(--scale)) minmax(0, 1fr);
+        min-height: calc(92px * var(--scale));
         overflow: hidden;
-        padding: calc(8px * var(--scale)) calc(10px * var(--scale));
+        padding: calc(10px * var(--scale)) calc(12px * var(--scale));
         position: relative;
         text-align: left;
       }
 
       .ha-weather-animation {
         align-items: center;
-        background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, var(--card-background-color, #fff));
+        background:
+          radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.65), transparent 34%),
+          color-mix(in srgb, var(--primary-color, #03a9f4) 16%, var(--card-background-color, #fff));
         border-radius: calc(8px * var(--scale));
         display: grid;
-        height: calc(52px * var(--scale));
+        height: calc(72px * var(--scale));
         justify-items: center;
         overflow: hidden;
         position: relative;
-        width: calc(52px * var(--scale));
+        width: calc(72px * var(--scale));
       }
 
-      .ha-weather-condition-icon {
+      .weather-icon-layer {
         animation: weather-icon-float 3.4s ease-in-out infinite;
         color: var(--state-icon-color, var(--primary-color, #03a9f4));
-        font-size: calc(34px * var(--scale));
-        height: calc(38px * var(--scale));
+        font-size: calc(58px * var(--scale));
+        height: calc(58px * var(--scale));
         line-height: 1;
-        position: relative;
-        width: calc(38px * var(--scale));
+        position: absolute;
+        width: calc(58px * var(--scale));
       }
 
-      .condition-sunny .ha-weather-condition-icon,
-      .condition-clear-night .ha-weather-condition-icon {
+      .layer-main {
+        left: calc(7px * var(--scale));
+        top: calc(7px * var(--scale));
+      }
+
+      .layer-sun {
         animation: weather-icon-spin 10s linear infinite;
-        color: #f7b731;
+        color: #f6b800;
       }
 
-      .condition-cloudy .ha-weather-condition-icon,
-      .condition-partlycloudy .ha-weather-condition-icon,
-      .condition-fog .ha-weather-condition-icon {
+      .layer-back-sun {
+        font-size: calc(48px * var(--scale));
+        height: calc(48px * var(--scale));
+        left: calc(3px * var(--scale));
+        top: calc(2px * var(--scale));
+        width: calc(48px * var(--scale));
+      }
+
+      .layer-cloud {
         animation: weather-icon-drift 4.2s ease-in-out infinite;
+        color: #7b8794;
       }
 
-      .condition-rainy .ha-weather-condition-icon,
-      .condition-pouring .ha-weather-condition-icon,
-      .condition-hail .ha-weather-condition-icon,
-      .condition-snowy .ha-weather-condition-icon,
-      .condition-snowy-rainy .ha-weather-condition-icon {
+      .layer-front-cloud {
+        font-size: calc(54px * var(--scale));
+        height: calc(54px * var(--scale));
+        left: calc(17px * var(--scale));
+        top: calc(20px * var(--scale));
+        width: calc(54px * var(--scale));
+      }
+
+      .layer-top-cloud {
+        font-size: calc(48px * var(--scale));
+        height: calc(48px * var(--scale));
+        left: calc(10px * var(--scale));
+        top: calc(2px * var(--scale));
+        width: calc(48px * var(--scale));
+      }
+
+      .layer-rain {
         animation: weather-icon-drop 1.15s ease-in-out infinite;
-        color: #4f8fc9;
+        color: #1976d2;
       }
 
-      .condition-lightning .ha-weather-condition-icon,
-      .condition-lightning-rainy .ha-weather-condition-icon,
-      .condition-exceptional .ha-weather-condition-icon {
+      .layer-snow {
+        animation: weather-icon-drop 1.6s ease-in-out infinite;
+        color: #56b5e8;
+      }
+
+      .layer-lightning,
+      .layer-alert {
         animation: weather-icon-pulse 1.1s ease-in-out infinite;
         color: #e3a008;
       }
 
-      .condition-windy .ha-weather-condition-icon,
-      .condition-windy-variant .ha-weather-condition-icon {
-        animation: weather-icon-wind 1.8s ease-in-out infinite;
+      .layer-moon {
+        color: #7c4dff;
       }
 
-      .pirate-copy {
+      .layer-fog {
+        color: #90a4ae;
+      }
+
+      .layer-fog-cloud {
+        font-size: calc(46px * var(--scale));
+        height: calc(46px * var(--scale));
+        left: calc(11px * var(--scale));
+        opacity: 0.78;
+        top: calc(1px * var(--scale));
+        width: calc(46px * var(--scale));
+      }
+
+      .layer-wind {
+        animation: weather-icon-wind 1.8s ease-in-out infinite;
+        color: #00838f;
+      }
+
+      .weather-description-copy {
         align-content: center;
         display: grid;
         gap: calc(4px * var(--scale));
         min-width: 0;
       }
 
-      .pirate-copy strong,
+      .weather-description-copy strong {
+        font-size: calc(19px * var(--scale));
+        font-weight: 730;
+        line-height: 1.15;
+      }
+
       .ai-summary strong {
         font-size: calc(14px * var(--scale));
         font-weight: 730;
         line-height: 1.15;
       }
 
-      .pirate-copy span,
+      .weather-description-copy span,
       .ai-summary span {
         color: var(--secondary-text-color, #727272);
-        font-size: calc(11px * var(--scale));
+        font-size: calc(12px * var(--scale));
         line-height: 1.2;
       }
 
@@ -1470,7 +1601,91 @@ function numberFromState(state) {
     return NaN;
   }
 
-  return Number.parseFloat(String(state.state).replace(",", "."));
+  return parseNumericValue(state.state);
+}
+
+function rainChanceFromSummary(summary) {
+  const temperature = numberFromState(summary.temperature.state);
+  const humidity = numberFromState(summary.humidity.state);
+  const dewPoint = numberFromState(summary.dew_point.state);
+  const pressure = pressureToHpa(
+    numberFromState(summary.pressure.state),
+    summary.pressure.state?.attributes?.unit_of_measurement
+  );
+
+  if (![temperature, humidity, dewPoint, pressure].every(Number.isFinite)) {
+    return NaN;
+  }
+
+  const dewPointSpread = Math.max(0, temperature - dewPoint);
+  const humidityScore = clamp((humidity - 45) * 0.8, 0, 34);
+  const dewPointScore = clamp(36 - dewPointSpread * 5.2, 0, 36);
+  const pressureScore = clamp((1018 - pressure) * 1.5, -10, 36);
+  const saturationBoost = humidity >= 90 && dewPointSpread <= 2
+    ? 12
+    : humidity >= 75 && dewPointSpread <= 4
+      ? 6
+      : 0;
+
+  return clamp(Math.round(10 + humidityScore + dewPointScore + pressureScore + saturationBoost), 0, 95);
+}
+
+function pressureToHpa(value, unit) {
+  if (!Number.isFinite(value)) {
+    return NaN;
+  }
+
+  const normalizedUnit = String(unit || "").trim().toLowerCase();
+
+  if (["pa", "pascal", "pascals"].includes(normalizedUnit)) {
+    return value / 100;
+  }
+
+  if (["kpa", "kilopascal", "kilopascals"].includes(normalizedUnit)) {
+    return value * 10;
+  }
+
+  if (["inhg", "in hg", "incheshg", "inches hg"].includes(normalizedUnit)) {
+    return value * 33.8639;
+  }
+
+  if (["mmhg", "mm hg"].includes(normalizedUnit)) {
+    return value * 1.33322;
+  }
+
+  return value;
+}
+
+function parseNumericValue(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/\s/g, "")
+    .replace(/[^\d,.-]/g, "");
+
+  if (!normalized || normalized === "-" || normalized === "," || normalized === ".") {
+    return NaN;
+  }
+
+  const lastComma = normalized.lastIndexOf(",");
+  const lastDot = normalized.lastIndexOf(".");
+  let numeric = normalized;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    numeric = lastComma > lastDot
+      ? normalized.replaceAll(".", "").replace(",", ".")
+      : normalized.replaceAll(",", "");
+  } else if (lastComma >= 0) {
+    numeric = normalized.replace(",", ".");
+  } else if ((normalized.match(/\./g) || []).length > 1) {
+    const lastSeparator = normalized.lastIndexOf(".");
+    numeric = normalized.slice(0, lastSeparator).replaceAll(".", "") + normalized.slice(lastSeparator);
+  }
+
+  return Number.parseFloat(numeric);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function beaufortFromState(state) {
