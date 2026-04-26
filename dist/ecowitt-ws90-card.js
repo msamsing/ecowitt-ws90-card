@@ -2,7 +2,7 @@
  * Ecowitt WS-90 Card
  * Home Assistant Lovelace custom card
  */
-const CARD_VERSION = "0.1.1";
+const CARD_VERSION = "0.1.2";
 
 const FIELD_DEFINITIONS = [
   {
@@ -174,6 +174,7 @@ const CONFIG_LABELS = {
   show_missing: "Vis manglende sensorer",
   compact: "Kompakt layout",
   show_weather_description: "Vis vejrbeskrivelse",
+  show_metric_icons: "Vis indikatorikoner",
   weather_entity: "Vejr entity",
   show_ai_summary: "Vis AI summary",
   ai_provider: "AI til tolkning",
@@ -196,6 +197,7 @@ const CONFIG_HELPERS = {
   wind_speed: "Vælg den normale hastighedssensor. Bruges også til Beaufort.",
   wind_gust: "Vælg den anden hastighedssensor, hvis den repræsenterer vindstød.",
   wind_bearing: "Vælg Direction-sensoren i grader. Kortet beregner kompasretningen ud fra denne.",
+  show_metric_icons: "Vis små animerede indikatorer i datafelterne.",
   weather_entity: "Valgfrit. Hvis valgt, styrer denne weather entity vejrbeskrivelsen og det animerede ikon.",
   ai_provider: "Valget gemmes i kortets config og vises sammen med summary-teksten.",
   ai_summary_entity: "Vælg en entity som indeholder AI-teksten, fx en sensor eller input_text opdateret af en automation."
@@ -286,6 +288,7 @@ class EcowittWs90Card extends HTMLElement {
       entity_prefix: "",
       scale: 1,
       show_weather_description: false,
+      show_metric_icons: true,
       weather_entity: "",
       show_ai_summary: false,
       ai_provider: "home_assistant",
@@ -382,6 +385,7 @@ class EcowittWs90Card extends HTMLElement {
               column_min_width: "220px",
               schema: [
                 { name: "show_weather_description", selector: { boolean: {} } },
+                { name: "show_metric_icons", selector: { boolean: {} } },
                 { name: "weather_entity", selector: { entity: { domain: "weather" } } },
                 { name: "show_ai_summary", selector: { boolean: {} } },
                 {
@@ -518,12 +522,12 @@ class EcowittWs90Card extends HTMLElement {
             </section>
 
             <div class="quick-grid">
-              ${this._renderSummaryItem("Dugpunkt", summary.dew_point)}
-              ${this._renderSummaryItem("Lufttryk", summary.pressure)}
-              ${this._renderSummaryItem("Nedbør", summary.rain)}
-              ${this._renderSummaryItem("UV", summary.uv_index)}
-              ${this._renderSummaryItem("Belysningsstyrke", summary.illuminance)}
-              ${this._renderSummaryItem("Regnchance", rainChance)}
+              ${this._renderSummaryItem("Dugpunkt", summary.dew_point, "dew_point")}
+              ${this._renderSummaryItem("Lufttryk", summary.pressure, "pressure")}
+              ${this._renderSummaryItem("Nedbør", summary.rain, "rain")}
+              ${this._renderSummaryItem("UV", summary.uv_index, "uv_index")}
+              ${this._renderSummaryItem("Belysningsstyrke", summary.illuminance, "illuminance")}
+              ${this._renderSummaryItem("Regnchance", rainChance, "rain_chance")}
             </div>
 
             <div class="sections">
@@ -767,15 +771,22 @@ class EcowittWs90Card extends HTMLElement {
     return `${parts.join(", ")}. Vælg en AI summary entity i kortets UI, hvis teksten skal komme fra ${AI_PROVIDERS[this._config.ai_provider] || "din valgte AI"}.`;
   }
 
-  _renderSummaryItem(label, field) {
+  _renderSummaryItem(label, field, metricKey) {
     if (!field?.state && !this._config.show_missing) {
       return "";
     }
 
+    const indicator = this._config.show_metric_icons === false || !metricKey
+      ? undefined
+      : metricIndicatorFor(metricKey, field);
+
     return `
-      <button class="summary-item" ${entityDataAttr(field.entityId)}>
-        <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(field.value)}</strong>
+      <button class="summary-item ${indicator ? "has-indicator" : ""}" ${entityDataAttr(field.entityId)}>
+        <span class="summary-copy">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(field.value)}</strong>
+        </span>
+        ${indicator ? this._renderMetricIndicator(indicator) : ""}
       </button>
     `;
   }
@@ -796,13 +807,100 @@ class EcowittWs90Card extends HTMLElement {
     return `
       <button class="weather-description ${conditionClass}" ${entityDataAttr(graphic.entityId)}>
         <div class="ha-weather-animation" aria-hidden="true">
-          ${this._renderWeatherIconLayers(graphic.condition)}
+          ${this._renderWeatherSvg(graphic.condition)}
         </div>
         <div class="weather-description-copy">
           <span>Vejrbeskrivelse</span>
           <strong>${escapeHtml(graphic.label)}</strong>
         </div>
       </button>
+    `;
+  }
+
+  _renderWeatherSvg(condition) {
+    const normalized = normalizeWeatherCondition(condition) || condition || "partlycloudy";
+
+    if (normalized === "sunny") {
+      return `
+        <svg class="weather-svg weather-svg-sunny" viewBox="0 0 96 96" aria-hidden="true">
+          <g class="weather-sun-rays" stroke="#ffd739" stroke-width="5" stroke-linecap="round">
+            <path d="M48 6v13M48 77v13M6 48h13M77 48h13M18 18l9 9M69 69l9 9M78 18l-9 9M27 69l-9 9"/>
+          </g>
+          <circle class="weather-sun-core" cx="48" cy="48" r="24" fill="#ffd739"/>
+        </svg>
+      `;
+    }
+
+    if (normalized === "clear-night") {
+      return `
+        <svg class="weather-svg weather-svg-night" viewBox="0 0 96 96" aria-hidden="true">
+          <path class="weather-moon" d="M62 14a34 34 0 1 0 18 54A30 30 0 1 1 62 14Z" fill="#7c4dff"/>
+          <circle cx="30" cy="22" r="3" fill="#d9ccff"/>
+          <circle cx="73" cy="35" r="2.5" fill="#d9ccff"/>
+        </svg>
+      `;
+    }
+
+    if (normalized === "partlycloudy") {
+      return `
+        <svg class="weather-svg weather-svg-partlycloudy" viewBox="0 0 96 96" aria-hidden="true">
+          <circle class="weather-sun-core" cx="62" cy="30" r="22" fill="#ffd739"/>
+          <g class="weather-cloud">
+            <circle cx="34" cy="56" r="20" fill="#d4d6d8"/>
+            <circle cx="55" cy="50" r="25" fill="#cfd2d4"/>
+            <circle cx="72" cy="60" r="18" fill="#c9cccf"/>
+            <rect x="24" y="54" width="60" height="26" rx="13" fill="#cfd2d4"/>
+            <circle cx="35" cy="66" r="18" fill="#f7f8f8"/>
+            <rect x="18" y="64" width="45" height="18" rx="9" fill="#f7f8f8"/>
+          </g>
+        </svg>
+      `;
+    }
+
+    const hasRain = ["rainy", "pouring", "lightning-rainy", "snowy-rainy", "hail"].includes(normalized);
+    const hasSnow = ["snowy", "snowy-rainy"].includes(normalized);
+    const hasLightning = ["lightning", "lightning-rainy", "exceptional"].includes(normalized);
+    const isFog = normalized === "fog";
+    const isWindy = ["windy", "windy-variant"].includes(normalized);
+
+    return `
+      <svg class="weather-svg weather-svg-${escapeHtml(normalized)}" viewBox="0 0 96 96" aria-hidden="true">
+        <g class="weather-cloud">
+          <circle cx="32" cy="48" r="20" fill="#d8dadc"/>
+          <circle cx="54" cy="40" r="26" fill="#d1d4d6"/>
+          <circle cx="72" cy="54" r="19" fill="#c8ccd0"/>
+          <rect x="18" y="50" width="66" height="29" rx="15" fill="#cfd2d4"/>
+          ${normalized === "cloudy" ? '<circle cx="35" cy="65" r="17" fill="#f5f6f7"/><rect x="22" y="63" width="45" height="17" rx="9" fill="#f5f6f7"/>' : ""}
+        </g>
+        ${hasRain ? `
+          <g class="weather-rain">
+            <path d="M34 78l-5 10" stroke="#1976d2" stroke-width="5" stroke-linecap="round"/>
+            <path d="M51 78l-5 10" stroke="#1976d2" stroke-width="5" stroke-linecap="round"/>
+            <path d="M68 78l-5 10" stroke="#1976d2" stroke-width="5" stroke-linecap="round"/>
+          </g>
+        ` : ""}
+        ${hasSnow ? `
+          <g class="weather-snow" fill="#56b5e8">
+            <circle cx="34" cy="84" r="4"/>
+            <circle cx="52" cy="88" r="4"/>
+            <circle cx="70" cy="82" r="4"/>
+          </g>
+        ` : ""}
+        ${hasLightning ? '<path class="weather-lightning" d="M56 55 42 80h12l-5 15 18-25H55l8-15Z" fill="#f9a825"/>' : ""}
+        ${isFog ? `
+          <g class="weather-fog" stroke="#90a4ae" stroke-width="5" stroke-linecap="round">
+            <path d="M22 77h52"/>
+            <path d="M30 88h42"/>
+          </g>
+        ` : ""}
+        ${isWindy ? `
+          <g class="weather-wind" stroke="#00838f" stroke-width="6" stroke-linecap="round" fill="none">
+            <path d="M17 45h44c12 0 12-16 0-16"/>
+            <path d="M24 60h53"/>
+            <path d="M17 74h38c10 0 10 13 0 13"/>
+          </g>
+        ` : ""}
+      </svg>
     `;
   }
 
@@ -816,13 +914,104 @@ class EcowittWs90Card extends HTMLElement {
       .join("");
   }
 
+  _renderMetricIndicator(indicator) {
+    return `
+      <span class="metric-indicator metric-${escapeHtml(indicator.metric)} metric-level-${indicator.level}" title="${escapeHtml(indicator.label)}">
+        ${this._renderMetricSvg(indicator)}
+      </span>
+    `;
+  }
+
+  _renderMetricSvg(indicator) {
+    const level = indicator.level;
+
+    if (indicator.metric === "uv_index") {
+      return `
+        <svg class="metric-svg metric-svg-uv" viewBox="0 0 64 64" aria-hidden="true">
+          <g class="metric-sun-rays" stroke="currentColor" stroke-width="${level >= 4 ? "5.5" : "4"}" stroke-linecap="round" opacity="${0.32 + level * 0.13}">
+            <path d="M32 5v10M32 49v10M5 32h10M49 32h10M12 12l7 7M45 45l7 7M52 12l-7 7M19 45l-7 7"/>
+          </g>
+          <circle class="metric-sun-core" cx="32" cy="32" r="${13 + level}" fill="currentColor"/>
+          ${level === 5 ? '<path d="M32 20v16" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="44" r="2.5" fill="#fff"/>' : ""}
+        </svg>
+      `;
+    }
+
+    if (indicator.metric === "dew_point") {
+      return `
+        <svg class="metric-svg metric-svg-dew" viewBox="0 0 64 64" aria-hidden="true">
+          <path class="metric-drop-shape" d="M32 7C21 21 14 31 14 42a18 18 0 0 0 36 0c0-11-7-21-18-35Z" fill="currentColor" opacity="${level <= 2 ? "0.72" : "1"}"/>
+          ${level <= 3 ? '<circle cx="25" cy="42" r="2.8" fill="#fff" opacity="0.78"/>' : ""}
+          ${level === 3 ? '<circle cx="38" cy="47" r="2.4" fill="#fff" opacity="0.7"/>' : ""}
+          ${level >= 4 ? '<path class="metric-steam" d="M19 18c7-4 11 4 18 0M17 28c9-5 15 5 29 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.78"/>' : ""}
+          ${level === 5 ? '<path class="metric-steam metric-steam-extra" d="M20 38c7-4 13 4 26 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.78"/>' : ""}
+        </svg>
+      `;
+    }
+
+    if (indicator.metric === "pressure") {
+      const angle = -56 + (level - 1) * 28;
+
+      return `
+        <svg class="metric-svg metric-svg-pressure" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M14 42a18 18 0 1 1 36 0" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity="0.42"/>
+          <path d="M22 42a10 10 0 1 1 20 0" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+          <path class="metric-gauge-needle" d="M32 42 32 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" transform="rotate(${angle} 32 42)"/>
+          <circle cx="32" cy="42" r="4" fill="currentColor"/>
+        </svg>
+      `;
+    }
+
+    if (indicator.metric === "rain") {
+      const drops = [
+        '<path class="metric-rain-drop" d="M26 39l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
+        '<path class="metric-rain-drop drop-two" d="M37 39l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
+        '<path class="metric-rain-drop drop-three" d="M48 39l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
+        '<path class="metric-rain-drop drop-four" d="M31 50l-4 8" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>'
+      ].slice(0, Math.max(0, level - 1)).join("");
+
+      return `
+        <svg class="metric-svg metric-svg-rain" viewBox="0 0 64 64" aria-hidden="true">
+          <g class="metric-cloud">
+            <circle cx="25" cy="28" r="11" fill="currentColor" opacity="0.45"/>
+            <circle cx="38" cy="24" r="14" fill="currentColor" opacity="0.55"/>
+            <rect x="17" y="29" width="32" height="14" rx="7" fill="currentColor" opacity="0.55"/>
+          </g>
+          ${drops}
+        </svg>
+      `;
+    }
+
+    if (indicator.metric === "illuminance") {
+      return `
+        <svg class="metric-svg metric-svg-light" viewBox="0 0 64 64" aria-hidden="true">
+          <circle class="metric-sun-core" cx="28" cy="28" r="${10 + level}" fill="currentColor"/>
+          <g class="metric-light-rays" stroke="currentColor" stroke-width="${2 + level * 0.4}" stroke-linecap="round" opacity="${0.25 + level * 0.13}">
+            <path d="M28 5v8M28 43v8M5 28h8M43 28h8M11 11l6 6M39 39l6 6M45 11l-6 6M17 39l-6 6"/>
+          </g>
+          <path class="metric-light-beam" d="M39 36 55 50" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity="0.45"/>
+        </svg>
+      `;
+    }
+
+    return `
+      <svg class="metric-svg metric-svg-rain-chance" viewBox="0 0 64 64" aria-hidden="true">
+        <g class="metric-cloud">
+          <circle cx="25" cy="27" r="11" fill="currentColor" opacity="0.42"/>
+          <circle cx="39" cy="23" r="14" fill="currentColor" opacity="0.54"/>
+          <rect x="17" y="29" width="34" height="14" rx="7" fill="currentColor" opacity="0.54"/>
+        </g>
+        <path class="metric-rain-drop" d="M29 42l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        ${level >= 3 ? '<path class="metric-rain-drop drop-two" d="M42 42l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' : ""}
+        ${level >= 5 ? '<path class="metric-rain-drop drop-three" d="M35 51l-4 8" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' : ""}
+        <text x="44" y="58" fill="currentColor" font-size="14" font-weight="800" text-anchor="middle">%</text>
+      </svg>
+    `;
+  }
+
   _renderAiSummary(summary) {
     return `
       <section class="ai-summary ${summary.fallback ? "is-fallback" : ""}" ${entityDataAttr(summary.entityId)}>
-        <div>
-          <span>${escapeHtml(summary.provider)}</span>
-          <strong>AI summary</strong>
-        </div>
         <p>${escapeHtml(summary.text)}</p>
       </section>
     `;
@@ -1134,16 +1323,49 @@ class EcowittWs90Card extends HTMLElement {
 
       .ha-weather-animation {
         align-items: center;
-        background:
-          radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.65), transparent 34%),
-          color-mix(in srgb, var(--primary-color, #03a9f4) 16%, var(--card-background-color, #fff));
-        border-radius: calc(8px * var(--scale));
         display: grid;
         height: calc(72px * var(--scale));
         justify-items: center;
         overflow: hidden;
         position: relative;
         width: calc(72px * var(--scale));
+      }
+
+      .weather-svg {
+        height: calc(72px * var(--scale));
+        overflow: visible;
+        width: calc(72px * var(--scale));
+      }
+
+      .weather-sun-core {
+        animation: weather-icon-pulse 4s ease-in-out infinite;
+        transform-origin: center;
+      }
+
+      .weather-sun-rays {
+        animation: weather-icon-spin 18s linear infinite;
+        transform-origin: center;
+      }
+
+      .weather-cloud {
+        animation: weather-icon-drift 4.2s ease-in-out infinite;
+      }
+
+      .weather-rain {
+        animation: weather-icon-drop 1.15s ease-in-out infinite;
+      }
+
+      .weather-snow {
+        animation: weather-icon-drop 1.8s ease-in-out infinite;
+      }
+
+      .weather-lightning {
+        animation: weather-icon-pulse 1.1s ease-in-out infinite;
+        transform-origin: center;
+      }
+
+      .weather-wind {
+        animation: weather-icon-wind 1.8s ease-in-out infinite;
       }
 
       .weather-icon-layer {
@@ -1261,15 +1483,7 @@ class EcowittWs90Card extends HTMLElement {
 
       .ai-summary {
         display: grid;
-        gap: calc(6px * var(--scale));
         padding: calc(9px * var(--scale)) calc(10px * var(--scale));
-      }
-
-      .ai-summary > div {
-        align-items: baseline;
-        display: flex;
-        gap: calc(8px * var(--scale));
-        justify-content: space-between;
       }
 
       .ai-summary p {
@@ -1291,11 +1505,19 @@ class EcowittWs90Card extends HTMLElement {
       }
 
       .summary-item {
+        align-items: center;
         display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
         gap: calc(2px * var(--scale));
         min-height: calc(40px * var(--scale));
         padding: calc(7px * var(--scale)) calc(8px * var(--scale));
         text-align: left;
+      }
+
+      .summary-copy {
+        display: grid;
+        gap: calc(2px * var(--scale));
+        min-width: 0;
       }
 
       .summary-item strong {
@@ -1304,6 +1526,105 @@ class EcowittWs90Card extends HTMLElement {
         line-height: 1.15;
         min-width: 0;
         overflow-wrap: anywhere;
+      }
+
+      .metric-indicator {
+        align-items: center;
+        background: var(--metric-bg, rgba(127, 127, 127, 0.08));
+        border-radius: calc(8px * var(--scale));
+        color: var(--metric-color, var(--primary-color, #03a9f4));
+        display: grid;
+        height: calc(34px * var(--scale));
+        justify-items: center;
+        margin-left: calc(5px * var(--scale));
+        overflow: hidden;
+        width: calc(34px * var(--scale));
+      }
+
+      .metric-svg {
+        height: calc(30px * var(--scale));
+        overflow: visible;
+        width: calc(30px * var(--scale));
+      }
+
+      .metric-uv_index.metric-level-1 { --metric-bg: #f4fbf0; --metric-color: #7cb342; }
+      .metric-uv_index.metric-level-2 { --metric-bg: #fffbea; --metric-color: #f9a825; }
+      .metric-uv_index.metric-level-3 { --metric-bg: #fff4df; --metric-color: #fb8c00; }
+      .metric-uv_index.metric-level-4 { --metric-bg: #fff0ef; --metric-color: #e53935; }
+      .metric-uv_index.metric-level-5 { --metric-bg: #f5ecff; --metric-color: #8e24aa; }
+
+      .metric-dew_point.metric-level-1 { --metric-bg: #eef6fb; --metric-color: #64b5f6; }
+      .metric-dew_point.metric-level-2 { --metric-bg: #eef9f7; --metric-color: #26a69a; }
+      .metric-dew_point.metric-level-3 { --metric-bg: #f3fbef; --metric-color: #66bb6a; }
+      .metric-dew_point.metric-level-4 { --metric-bg: #fff7e7; --metric-color: #fb8c00; }
+      .metric-dew_point.metric-level-5 { --metric-bg: #fff0f2; --metric-color: #d81b60; }
+
+      .metric-pressure.metric-level-1 { --metric-bg: #eef3ff; --metric-color: #536dfe; }
+      .metric-pressure.metric-level-2 { --metric-bg: #edf7fb; --metric-color: #039be5; }
+      .metric-pressure.metric-level-3 { --metric-bg: #f3fbef; --metric-color: #43a047; }
+      .metric-pressure.metric-level-4 { --metric-bg: #fffbea; --metric-color: #f9a825; }
+      .metric-pressure.metric-level-5 { --metric-bg: #fff1e6; --metric-color: #ef6c00; }
+
+      .metric-rain.metric-level-1,
+      .metric-rain_chance.metric-level-1 { --metric-bg: #eef9f7; --metric-color: #26a69a; }
+      .metric-rain.metric-level-2,
+      .metric-rain_chance.metric-level-2 { --metric-bg: #eef6fb; --metric-color: #42a5f5; }
+      .metric-rain.metric-level-3,
+      .metric-rain_chance.metric-level-3 { --metric-bg: #eaf2ff; --metric-color: #1976d2; }
+      .metric-rain.metric-level-4,
+      .metric-rain_chance.metric-level-4 { --metric-bg: #fff4df; --metric-color: #fb8c00; }
+      .metric-rain.metric-level-5,
+      .metric-rain_chance.metric-level-5 { --metric-bg: #fff0ef; --metric-color: #d32f2f; }
+
+      .metric-illuminance.metric-level-1 { --metric-bg: #f2f4f7; --metric-color: #78909c; }
+      .metric-illuminance.metric-level-2 { --metric-bg: #fffbea; --metric-color: #fbc02d; }
+      .metric-illuminance.metric-level-3 { --metric-bg: #fff7e7; --metric-color: #f9a825; }
+      .metric-illuminance.metric-level-4 { --metric-bg: #fff1e6; --metric-color: #fb8c00; }
+      .metric-illuminance.metric-level-5 { --metric-bg: #fff0ef; --metric-color: #ef6c00; }
+
+      .metric-sun-rays,
+      .metric-light-rays {
+        animation: weather-icon-spin 14s linear infinite;
+        transform-origin: center;
+      }
+
+      .metric-sun-core {
+        animation: metric-pulse 2.2s ease-in-out infinite;
+        transform-origin: center;
+      }
+
+      .metric-drop-shape,
+      .metric-rain-drop {
+        animation: metric-bob 2.2s ease-in-out infinite;
+      }
+
+      .drop-two {
+        animation-delay: -0.4s;
+      }
+
+      .drop-three {
+        animation-delay: -0.8s;
+      }
+
+      .drop-four {
+        animation-delay: -1.1s;
+      }
+
+      .metric-steam {
+        animation: metric-steam 2s ease-in-out infinite;
+      }
+
+      .metric-steam-extra {
+        animation-delay: -0.5s;
+      }
+
+      .metric-gauge-needle {
+        animation: metric-needle 2.8s ease-in-out infinite;
+        transform-origin: 32px 42px;
+      }
+
+      .metric-light-beam {
+        animation: metric-beam 2.4s ease-in-out infinite;
       }
 
       .sections {
@@ -1490,6 +1811,63 @@ class EcowittWs90Card extends HTMLElement {
           transform: translateX(calc(5px * var(--scale)));
         }
       }
+
+      @keyframes metric-pulse {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+
+        50% {
+          transform: scale(1.08);
+        }
+      }
+
+      @keyframes metric-bob {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+
+        50% {
+          transform: translateY(calc(-2px * var(--scale)));
+        }
+      }
+
+      @keyframes metric-steam {
+        0%,
+        100% {
+          opacity: 0.82;
+          transform: translateY(0);
+        }
+
+        50% {
+          opacity: 0.46;
+          transform: translateY(calc(-3px * var(--scale)));
+        }
+      }
+
+      @keyframes metric-needle {
+        0%,
+        100% {
+          filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+        }
+
+        50% {
+          filter: drop-shadow(0 0 calc(2px * var(--scale)) rgba(0, 0, 0, 0.18));
+        }
+      }
+
+      @keyframes metric-beam {
+        0%,
+        100% {
+          opacity: 0.42;
+        }
+
+        50% {
+          opacity: 0.85;
+        }
+      }
     `;
   }
 }
@@ -1604,6 +1982,70 @@ function numberFromState(state) {
   return parseNumericValue(state.state);
 }
 
+function metricIndicatorFor(metric, field) {
+  if (!field?.state) {
+    return undefined;
+  }
+
+  const rawValue = numberFromState(field.state);
+  let value = rawValue;
+  let level = 3;
+  let label = "";
+
+  if (!Number.isFinite(value)) {
+    return undefined;
+  }
+
+  if (metric === "dew_point") {
+    level = levelFromThresholds(value, [0, 5, 10, 16]);
+    label = ["Meget tørt", "Tørt", "Normal", "Fugtigt", "Tung luft"][level - 1];
+  } else if (metric === "pressure") {
+    value = pressureToHpa(value, field.state.attributes?.unit_of_measurement);
+    level = levelFromThresholds(value, [995, 1005, 1015, 1025]);
+    label = ["Meget lavt lufttryk", "Lavt lufttryk", "Normalt lufttryk", "Højt lufttryk", "Meget højt lufttryk"][level - 1];
+  } else if (metric === "rain") {
+    value = rainToMillimeters(value, field.state.attributes?.unit_of_measurement);
+    level = levelFromThresholds(value, [0, 1, 5, 15]);
+    label = ["Ingen nedbør", "Spor af nedbør", "Let nedbør", "Moderat nedbør", "Kraftig nedbør"][level - 1];
+  } else if (metric === "uv_index") {
+    level = levelFromThresholds(value, [2, 5, 7, 10]);
+    label = ["Lav UV", "Moderat UV", "Høj UV", "Meget høj UV", "Ekstrem UV"][level - 1];
+  } else if (metric === "illuminance") {
+    level = levelFromThresholds(value, [1000, 10000, 25000, 60000]);
+    label = ["Mørkt", "Dæmpet lys", "Lyst", "Meget lyst", "Direkte sol"][level - 1];
+  } else if (metric === "rain_chance") {
+    level = levelFromThresholds(value, [20, 40, 60, 80]);
+    label = ["Lav regnchance", "Mulig regn", "Moderat regnchance", "Sandsynlig regn", "Meget sandsynlig regn"][level - 1];
+  }
+
+  return {
+    metric,
+    value,
+    level,
+    label
+  };
+}
+
+function levelFromThresholds(value, thresholds) {
+  if (value <= thresholds[0]) {
+    return 1;
+  }
+
+  if (value <= thresholds[1]) {
+    return 2;
+  }
+
+  if (value <= thresholds[2]) {
+    return 3;
+  }
+
+  if (value <= thresholds[3]) {
+    return 4;
+  }
+
+  return 5;
+}
+
 function rainChanceFromSummary(summary) {
   const temperature = numberFromState(summary.temperature.state);
   const humidity = numberFromState(summary.humidity.state);
@@ -1651,6 +2093,20 @@ function pressureToHpa(value, unit) {
 
   if (["mmhg", "mm hg"].includes(normalizedUnit)) {
     return value * 1.33322;
+  }
+
+  return value;
+}
+
+function rainToMillimeters(value, unit) {
+  if (!Number.isFinite(value)) {
+    return NaN;
+  }
+
+  const normalizedUnit = String(unit || "").trim().toLowerCase();
+
+  if (["in", "inch", "inches"].includes(normalizedUnit)) {
+    return value * 25.4;
   }
 
   return value;

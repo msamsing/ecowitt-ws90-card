@@ -9,7 +9,8 @@ The card is dependency-free JavaScript. Build output is written to `dist/ecowitt
 - Compact summary view for the WS-90 sensors shown by Home Assistant.
 - Container-based scaling so text, icons and spacing shrink with narrower dashboard cards.
 - Optional animated Home Assistant weather icon and weather description driven by a selected weather entity or WS-90 data.
-- Optional AI summary text with selectable provider label and summary entity.
+- Optional AI summary text from a selected summary entity.
+- Animated indicator icons for dew point, pressure, rain, UV, illuminance and calculated rain chance.
 - Calculated rain chance from pressure, humidity, dew point and temperature.
 - Beaufort score and Danish wind-force name below the wind speed.
 - Derived compass direction from the numeric `Direction` sensor.
@@ -79,6 +80,7 @@ station_name: Garden weather
 show_missing: false
 scale: 1
 show_weather_description: true
+show_metric_icons: true
 weather_entity: weather.forecast_home
 show_ai_summary: true
 ai_provider: openai
@@ -124,6 +126,7 @@ The optional AI summary is display-only in the card. Create/update the selected 
 | `compact` | boolean | `false` | Use a tighter layout. |
 | `scale` | number | `1` | Manual text/icon scale multiplier from `0.5` to `1.2`; auto-scaling still applies when the card gets narrow. |
 | `show_weather_description` | boolean | `false` | Show the animated weather icon and weather description block. |
+| `show_metric_icons` | boolean | `true` | Show animated right-side value indicators for the compact metric tiles. |
 | `weather_entity` | string | `""` | Optional weather entity used to drive the icon and description. |
 | `show_ai_summary` | boolean | `false` | Show the AI summary block. |
 | `ai_provider` | string | `home_assistant` | Provider label: `home_assistant`, `openai`, `anthropic`, `google`, `ollama`, or `custom`. |
