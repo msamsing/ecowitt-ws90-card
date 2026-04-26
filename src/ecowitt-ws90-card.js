@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.2";
+const CARD_VERSION = "0.1.3";
 
 const FIELD_DEFINITIONS = [
   {
@@ -170,7 +170,7 @@ const CONFIG_LABELS = {
   show_missing: "Vis manglende sensorer",
   compact: "Kompakt layout",
   show_weather_description: "Vis vejrbeskrivelse",
-  show_metric_icons: "Vis indikatorikoner",
+  show_metric_icons: "Vis sæsonstatus",
   weather_entity: "Vejr entity",
   show_ai_summary: "Vis AI summary",
   ai_provider: "AI til tolkning",
@@ -193,9 +193,9 @@ const CONFIG_HELPERS = {
   wind_speed: "Vælg den normale hastighedssensor. Bruges også til Beaufort.",
   wind_gust: "Vælg den anden hastighedssensor, hvis den repræsenterer vindstød.",
   wind_bearing: "Vælg Direction-sensoren i grader. Kortet beregner kompasretningen ud fra denne.",
-  show_metric_icons: "Vis små animerede indikatorer i datafelterne.",
+  show_metric_icons: "Vis rød/gul/grøn markering for hvor tæt værdien er på årstidens optimalområde.",
   weather_entity: "Valgfrit. Hvis valgt, styrer denne weather entity vejrbeskrivelsen og det animerede ikon.",
-  ai_provider: "Valget gemmes i kortets config og vises sammen med summary-teksten.",
+  ai_provider: "Valget gemmes i kortets config, så en automation kan vide hvilken AI der tolker data.",
   ai_summary_entity: "Vælg en entity som indeholder AI-teksten, fx en sensor eller input_text opdateret af en automation."
 };
 const ENTITY_CONFIG_SCHEMA = [
@@ -227,6 +227,63 @@ const BEAUFORT_SCALE = [
   { score: 11, max: 32.7, name: "Stærk storm" },
   { score: 12, max: Infinity, name: "Orkan" }
 ];
+const SEASON_LABELS = {
+  winter: "Vinter",
+  spring: "Forår",
+  summer: "Sommer",
+  autumn: "Efterår"
+};
+const METRIC_STATUS_LABELS = {
+  dew_point: "Dugpunkt",
+  pressure: "Lufttryk",
+  rain: "Nedbør",
+  uv_index: "UV",
+  illuminance: "Belysningsstyrke",
+  rain_chance: "Regnchance"
+};
+const METRIC_STATUS_TEXT = {
+  green: "inden for optimalområdet",
+  yellow: "tæt på optimalområdet",
+  red: "langt fra optimalområdet"
+};
+const SEASONAL_METRIC_RANGES = {
+  dew_point: {
+    winter: { min: -3, max: 3, tolerance: 4, unit: "°C" },
+    spring: { min: 2, max: 8, tolerance: 5, unit: "°C" },
+    summer: { min: 8, max: 14, tolerance: 6, unit: "°C" },
+    autumn: { min: 4, max: 10, tolerance: 5, unit: "°C" }
+  },
+  pressure: {
+    winter: { min: 1015, max: 1025, tolerance: 10, unit: "hPa" },
+    spring: { min: 1015, max: 1025, tolerance: 10, unit: "hPa" },
+    summer: { min: 1013, max: 1023, tolerance: 10, unit: "hPa" },
+    autumn: { min: 1015, max: 1025, tolerance: 10, unit: "hPa" }
+  },
+  rain: {
+    winter: { max: 0, yellowMax: 2, unit: "mm" },
+    spring: { max: 0, yellowMax: 2, unit: "mm" },
+    summer: { max: 0, yellowMax: 1.5, unit: "mm" },
+    autumn: { max: 0, yellowMax: 3, unit: "mm" }
+  },
+  uv_index: {
+    winter: { max: 1, yellowMax: 2.5, unit: "" },
+    spring: { max: 4, yellowMax: 6, unit: "" },
+    summer: { max: 6, yellowMax: 8, unit: "" },
+    autumn: { max: 3, yellowMax: 5, unit: "" }
+  },
+  illuminance: {
+    winter: { min: 1000, max: 15000, tolerance: 12000, unit: "lx" },
+    spring: { min: 8000, max: 45000, tolerance: 25000, unit: "lx" },
+    summer: { min: 15000, max: 75000, tolerance: 35000, unit: "lx" },
+    autumn: { min: 3000, max: 30000, tolerance: 18000, unit: "lx" }
+  },
+  rain_chance: {
+    winter: { max: 25, yellowMax: 50, unit: "%" },
+    spring: { max: 25, yellowMax: 50, unit: "%" },
+    summer: { max: 20, yellowMax: 45, unit: "%" },
+    autumn: { max: 30, yellowMax: 55, unit: "%" }
+  }
+};
 const CARD_TAG = "ecowitt-ws90-card";
 const LEGACY_SHOW_WEATHER_KEY = ["show", "pira", "teweather", "_graphic"].join("");
 const LEGACY_WEATHER_ENTITY_KEY = ["pira", "teweather", "_entity"].join("");
@@ -912,8 +969,10 @@ class EcowittWs90Card extends HTMLElement {
 
   _renderMetricIndicator(indicator) {
     return `
-      <span class="metric-indicator metric-${escapeHtml(indicator.metric)} metric-level-${indicator.level}" title="${escapeHtml(indicator.label)}">
-        ${this._renderMetricSvg(indicator)}
+      <span class="metric-status metric-status-${escapeHtml(indicator.status)}" title="${escapeHtml(indicator.label)}" aria-label="${escapeHtml(indicator.label)}">
+        <span class="status-light status-red" aria-hidden="true"></span>
+        <span class="status-light status-yellow" aria-hidden="true"></span>
+        <span class="status-light status-green" aria-hidden="true"></span>
       </span>
     `;
   }
@@ -1524,103 +1583,58 @@ class EcowittWs90Card extends HTMLElement {
         overflow-wrap: anywhere;
       }
 
-      .metric-indicator {
+      .metric-status {
         align-items: center;
-        background: var(--metric-bg, rgba(127, 127, 127, 0.08));
-        border-radius: calc(8px * var(--scale));
-        color: var(--metric-color, var(--primary-color, #03a9f4));
+        background: rgba(127, 127, 127, 0.08);
+        border: 1px solid rgba(127, 127, 127, 0.12);
+        border-radius: calc(999px * var(--scale));
         display: grid;
-        height: calc(34px * var(--scale));
-        justify-items: center;
-        margin-left: calc(5px * var(--scale));
-        overflow: hidden;
-        width: calc(34px * var(--scale));
+        gap: calc(2px * var(--scale));
+        grid-template-rows: repeat(3, calc(7px * var(--scale)));
+        justify-content: center;
+        margin-left: calc(6px * var(--scale));
+        padding: calc(4px * var(--scale)) calc(3px * var(--scale));
+        width: calc(15px * var(--scale));
       }
 
-      .metric-svg {
-        height: calc(30px * var(--scale));
-        overflow: visible;
-        width: calc(30px * var(--scale));
+      .status-light {
+        border-radius: 50%;
+        display: block;
+        height: calc(7px * var(--scale));
+        opacity: 0.2;
+        width: calc(7px * var(--scale));
       }
 
-      .metric-uv_index.metric-level-1 { --metric-bg: #f4fbf0; --metric-color: #7cb342; }
-      .metric-uv_index.metric-level-2 { --metric-bg: #fffbea; --metric-color: #f9a825; }
-      .metric-uv_index.metric-level-3 { --metric-bg: #fff4df; --metric-color: #fb8c00; }
-      .metric-uv_index.metric-level-4 { --metric-bg: #fff0ef; --metric-color: #e53935; }
-      .metric-uv_index.metric-level-5 { --metric-bg: #f5ecff; --metric-color: #8e24aa; }
-
-      .metric-dew_point.metric-level-1 { --metric-bg: #eef6fb; --metric-color: #64b5f6; }
-      .metric-dew_point.metric-level-2 { --metric-bg: #eef9f7; --metric-color: #26a69a; }
-      .metric-dew_point.metric-level-3 { --metric-bg: #f3fbef; --metric-color: #66bb6a; }
-      .metric-dew_point.metric-level-4 { --metric-bg: #fff7e7; --metric-color: #fb8c00; }
-      .metric-dew_point.metric-level-5 { --metric-bg: #fff0f2; --metric-color: #d81b60; }
-
-      .metric-pressure.metric-level-1 { --metric-bg: #eef3ff; --metric-color: #536dfe; }
-      .metric-pressure.metric-level-2 { --metric-bg: #edf7fb; --metric-color: #039be5; }
-      .metric-pressure.metric-level-3 { --metric-bg: #f3fbef; --metric-color: #43a047; }
-      .metric-pressure.metric-level-4 { --metric-bg: #fffbea; --metric-color: #f9a825; }
-      .metric-pressure.metric-level-5 { --metric-bg: #fff1e6; --metric-color: #ef6c00; }
-
-      .metric-rain.metric-level-1,
-      .metric-rain_chance.metric-level-1 { --metric-bg: #eef9f7; --metric-color: #26a69a; }
-      .metric-rain.metric-level-2,
-      .metric-rain_chance.metric-level-2 { --metric-bg: #eef6fb; --metric-color: #42a5f5; }
-      .metric-rain.metric-level-3,
-      .metric-rain_chance.metric-level-3 { --metric-bg: #eaf2ff; --metric-color: #1976d2; }
-      .metric-rain.metric-level-4,
-      .metric-rain_chance.metric-level-4 { --metric-bg: #fff4df; --metric-color: #fb8c00; }
-      .metric-rain.metric-level-5,
-      .metric-rain_chance.metric-level-5 { --metric-bg: #fff0ef; --metric-color: #d32f2f; }
-
-      .metric-illuminance.metric-level-1 { --metric-bg: #f2f4f7; --metric-color: #78909c; }
-      .metric-illuminance.metric-level-2 { --metric-bg: #fffbea; --metric-color: #fbc02d; }
-      .metric-illuminance.metric-level-3 { --metric-bg: #fff7e7; --metric-color: #f9a825; }
-      .metric-illuminance.metric-level-4 { --metric-bg: #fff1e6; --metric-color: #fb8c00; }
-      .metric-illuminance.metric-level-5 { --metric-bg: #fff0ef; --metric-color: #ef6c00; }
-
-      .metric-sun-rays,
-      .metric-light-rays {
-        animation: weather-icon-spin 14s linear infinite;
-        transform-origin: center;
+      .status-red {
+        background: #d93025;
       }
 
-      .metric-sun-core {
-        animation: metric-pulse 2.2s ease-in-out infinite;
-        transform-origin: center;
+      .status-yellow {
+        background: #fbbc04;
       }
 
-      .metric-drop-shape,
-      .metric-rain-drop {
-        animation: metric-bob 2.2s ease-in-out infinite;
+      .status-green {
+        background: #188038;
       }
 
-      .drop-two {
-        animation-delay: -0.4s;
+      .metric-status-red {
+        color: #d93025;
       }
 
-      .drop-three {
-        animation-delay: -0.8s;
+      .metric-status-yellow {
+        color: #fbbc04;
       }
 
-      .drop-four {
-        animation-delay: -1.1s;
+      .metric-status-green {
+        color: #188038;
       }
 
-      .metric-steam {
-        animation: metric-steam 2s ease-in-out infinite;
-      }
-
-      .metric-steam-extra {
-        animation-delay: -0.5s;
-      }
-
-      .metric-gauge-needle {
-        animation: metric-needle 2.8s ease-in-out infinite;
-        transform-origin: 32px 42px;
-      }
-
-      .metric-light-beam {
-        animation: metric-beam 2.4s ease-in-out infinite;
+      .metric-status-red .status-red,
+      .metric-status-yellow .status-yellow,
+      .metric-status-green .status-green {
+        box-shadow: 0 0 calc(7px * var(--scale)) currentColor;
+        color: currentColor;
+        opacity: 1;
       }
 
       .sections {
@@ -1983,63 +1997,101 @@ function metricIndicatorFor(metric, field) {
     return undefined;
   }
 
+  const season = getDanishSeason();
+  const range = SEASONAL_METRIC_RANGES[metric]?.[season.key];
   const rawValue = numberFromState(field.state);
   let value = rawValue;
-  let level = 3;
-  let label = "";
+
+  if (!range || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  if (metric === "pressure") {
+    value = pressureToHpa(value, field.state.attributes?.unit_of_measurement);
+  } else if (metric === "rain") {
+    value = rainToMillimeters(value, field.state.attributes?.unit_of_measurement);
+  }
 
   if (!Number.isFinite(value)) {
     return undefined;
   }
 
-  if (metric === "dew_point") {
-    level = levelFromThresholds(value, [0, 5, 10, 16]);
-    label = ["Meget tørt", "Tørt", "Normal", "Fugtigt", "Tung luft"][level - 1];
-  } else if (metric === "pressure") {
-    value = pressureToHpa(value, field.state.attributes?.unit_of_measurement);
-    level = levelFromThresholds(value, [995, 1005, 1015, 1025]);
-    label = ["Meget lavt lufttryk", "Lavt lufttryk", "Normalt lufttryk", "Højt lufttryk", "Meget højt lufttryk"][level - 1];
-  } else if (metric === "rain") {
-    value = rainToMillimeters(value, field.state.attributes?.unit_of_measurement);
-    level = levelFromThresholds(value, [0, 1, 5, 15]);
-    label = ["Ingen nedbør", "Spor af nedbør", "Let nedbør", "Moderat nedbør", "Kraftig nedbør"][level - 1];
-  } else if (metric === "uv_index") {
-    level = levelFromThresholds(value, [2, 5, 7, 10]);
-    label = ["Lav UV", "Moderat UV", "Høj UV", "Meget høj UV", "Ekstrem UV"][level - 1];
-  } else if (metric === "illuminance") {
-    level = levelFromThresholds(value, [1000, 10000, 25000, 60000]);
-    label = ["Mørkt", "Dæmpet lys", "Lyst", "Meget lyst", "Direkte sol"][level - 1];
-  } else if (metric === "rain_chance") {
-    level = levelFromThresholds(value, [20, 40, 60, 80]);
-    label = ["Lav regnchance", "Mulig regn", "Moderat regnchance", "Sandsynlig regn", "Meget sandsynlig regn"][level - 1];
-  }
+  const status = seasonalStatusForValue(value, range);
+  const metricLabel = METRIC_STATUS_LABELS[metric] || metric;
+  const optimalText = seasonalRangeText(range);
+  const measuredText = metricValueText(value, range.unit);
 
   return {
     metric,
     value,
-    level,
-    label
+    status,
+    label: `${metricLabel}: ${METRIC_STATUS_TEXT[status]}. ${season.label} optimal: ${optimalText}. Målt: ${measuredText}.`
   };
 }
 
-function levelFromThresholds(value, thresholds) {
-  if (value <= thresholds[0]) {
-    return 1;
+function getDanishSeason(date = new Date()) {
+  const month = date.getMonth();
+
+  if (month === 11 || month <= 1) {
+    return { key: "winter", label: SEASON_LABELS.winter };
   }
 
-  if (value <= thresholds[1]) {
-    return 2;
+  if (month <= 4) {
+    return { key: "spring", label: SEASON_LABELS.spring };
   }
 
-  if (value <= thresholds[2]) {
-    return 3;
+  if (month <= 7) {
+    return { key: "summer", label: SEASON_LABELS.summer };
   }
 
-  if (value <= thresholds[3]) {
-    return 4;
+  return { key: "autumn", label: SEASON_LABELS.autumn };
+}
+
+function seasonalStatusForValue(value, range) {
+  if (Number.isFinite(range.yellowMax)) {
+    if (value <= range.max) {
+      return "green";
+    }
+
+    return value <= range.yellowMax ? "yellow" : "red";
   }
 
-  return 5;
+  const min = Number.isFinite(range.min) ? range.min : Number.NEGATIVE_INFINITY;
+  const max = Number.isFinite(range.max) ? range.max : Number.POSITIVE_INFINITY;
+
+  if (value >= min && value <= max) {
+    return "green";
+  }
+
+  const fallbackTolerance = Number.isFinite(min) && Number.isFinite(max)
+    ? Math.max(1, (max - min) * 0.75)
+    : 1;
+  const tolerance = Number.isFinite(range.tolerance) ? range.tolerance : fallbackTolerance;
+
+  return value >= min - tolerance && value <= max + tolerance ? "yellow" : "red";
+}
+
+function seasonalRangeText(range) {
+  if (Number.isFinite(range.min) && Number.isFinite(range.max)) {
+    return `${metricValueText(range.min, "")}-${metricValueText(range.max, range.unit)}`;
+  }
+
+  if (Number.isFinite(range.max)) {
+    return range.max === 0
+      ? metricValueText(0, range.unit)
+      : `op til ${metricValueText(range.max, range.unit)}`;
+  }
+
+  return "ikke defineret";
+}
+
+function metricValueText(value, unit) {
+  const rounded = Math.abs(value) >= 100
+    ? Math.round(value)
+    : Math.round(value * 10) / 10;
+  const formatted = String(rounded).replace(".", ",");
+
+  return unit ? `${formatted} ${unit}` : formatted;
 }
 
 function rainChanceFromSummary(summary) {
