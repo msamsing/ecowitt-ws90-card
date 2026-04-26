@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.3";
+const CARD_VERSION = "0.1.4";
 
 const FIELD_DEFINITIONS = [
   {
@@ -193,7 +193,7 @@ const CONFIG_HELPERS = {
   wind_speed: "Vælg den normale hastighedssensor. Bruges også til Beaufort.",
   wind_gust: "Vælg den anden hastighedssensor, hvis den repræsenterer vindstød.",
   wind_bearing: "Vælg Direction-sensoren i grader. Kortet beregner kompasretningen ud fra denne.",
-  show_metric_icons: "Vis rød/gul/grøn markering for hvor tæt værdien er på årstidens optimalområde.",
+  show_metric_icons: "Vis grøn normalmarkering eller røde op/ned-pile i forhold til årstidens normalområde.",
   weather_entity: "Valgfrit. Hvis valgt, styrer denne weather entity vejrbeskrivelsen og det animerede ikon.",
   ai_provider: "Valget gemmes i kortets config, så en automation kan vide hvilken AI der tolker data.",
   ai_summary_entity: "Vælg en entity som indeholder AI-teksten, fx en sensor eller input_text opdateret af en automation."
@@ -242,46 +242,46 @@ const METRIC_STATUS_LABELS = {
   rain_chance: "Regnchance"
 };
 const METRIC_STATUS_TEXT = {
-  green: "inden for optimalområdet",
-  yellow: "tæt på optimalområdet",
-  red: "langt fra optimalområdet"
+  normal: "inden for årstidens normalområde",
+  high: "højere end årstidens normalområde",
+  low: "lavere end årstidens normalområde"
 };
 const SEASONAL_METRIC_RANGES = {
   dew_point: {
-    winter: { min: -3, max: 3, tolerance: 4, unit: "°C" },
-    spring: { min: 2, max: 8, tolerance: 5, unit: "°C" },
-    summer: { min: 8, max: 14, tolerance: 6, unit: "°C" },
-    autumn: { min: 4, max: 10, tolerance: 5, unit: "°C" }
+    winter: { min: -3, max: 3, unit: "°C" },
+    spring: { min: 2, max: 8, unit: "°C" },
+    summer: { min: 8, max: 14, unit: "°C" },
+    autumn: { min: 4, max: 10, unit: "°C" }
   },
   pressure: {
-    winter: { min: 1015, max: 1025, tolerance: 10, unit: "hPa" },
-    spring: { min: 1015, max: 1025, tolerance: 10, unit: "hPa" },
-    summer: { min: 1013, max: 1023, tolerance: 10, unit: "hPa" },
-    autumn: { min: 1015, max: 1025, tolerance: 10, unit: "hPa" }
+    winter: { min: 1015, max: 1025, unit: "hPa" },
+    spring: { min: 1015, max: 1025, unit: "hPa" },
+    summer: { min: 1013, max: 1023, unit: "hPa" },
+    autumn: { min: 1015, max: 1025, unit: "hPa" }
   },
   rain: {
-    winter: { max: 0, yellowMax: 2, unit: "mm" },
-    spring: { max: 0, yellowMax: 2, unit: "mm" },
-    summer: { max: 0, yellowMax: 1.5, unit: "mm" },
-    autumn: { max: 0, yellowMax: 3, unit: "mm" }
+    winter: { min: 0, max: 0, unit: "mm" },
+    spring: { min: 0, max: 0, unit: "mm" },
+    summer: { min: 0, max: 0, unit: "mm" },
+    autumn: { min: 0, max: 0, unit: "mm" }
   },
   uv_index: {
-    winter: { max: 1, yellowMax: 2.5, unit: "" },
-    spring: { max: 4, yellowMax: 6, unit: "" },
-    summer: { max: 6, yellowMax: 8, unit: "" },
-    autumn: { max: 3, yellowMax: 5, unit: "" }
+    winter: { min: 0, max: 1, unit: "" },
+    spring: { min: 1, max: 4, unit: "" },
+    summer: { min: 2, max: 6, unit: "" },
+    autumn: { min: 0, max: 3, unit: "" }
   },
   illuminance: {
-    winter: { min: 1000, max: 15000, tolerance: 12000, unit: "lx" },
-    spring: { min: 8000, max: 45000, tolerance: 25000, unit: "lx" },
-    summer: { min: 15000, max: 75000, tolerance: 35000, unit: "lx" },
-    autumn: { min: 3000, max: 30000, tolerance: 18000, unit: "lx" }
+    winter: { min: 1000, max: 15000, unit: "lx" },
+    spring: { min: 8000, max: 45000, unit: "lx" },
+    summer: { min: 15000, max: 75000, unit: "lx" },
+    autumn: { min: 3000, max: 30000, unit: "lx" }
   },
   rain_chance: {
-    winter: { max: 25, yellowMax: 50, unit: "%" },
-    spring: { max: 25, yellowMax: 50, unit: "%" },
-    summer: { max: 20, yellowMax: 45, unit: "%" },
-    autumn: { max: 30, yellowMax: 55, unit: "%" }
+    winter: { min: 0, max: 25, unit: "%" },
+    spring: { min: 0, max: 25, unit: "%" },
+    summer: { min: 0, max: 20, unit: "%" },
+    autumn: { min: 0, max: 30, unit: "%" }
   }
 };
 const CARD_TAG = "ecowitt-ws90-card";
@@ -970,97 +970,10 @@ class EcowittWs90Card extends HTMLElement {
   _renderMetricIndicator(indicator) {
     return `
       <span class="metric-status metric-status-${escapeHtml(indicator.status)}" title="${escapeHtml(indicator.label)}" aria-label="${escapeHtml(indicator.label)}">
-        <span class="status-light status-red" aria-hidden="true"></span>
-        <span class="status-light status-yellow" aria-hidden="true"></span>
-        <span class="status-light status-green" aria-hidden="true"></span>
+        <span class="status-arrow status-arrow-high" aria-hidden="true">↑</span>
+        <span class="status-normal" aria-hidden="true"></span>
+        <span class="status-arrow status-arrow-low" aria-hidden="true">↓</span>
       </span>
-    `;
-  }
-
-  _renderMetricSvg(indicator) {
-    const level = indicator.level;
-
-    if (indicator.metric === "uv_index") {
-      return `
-        <svg class="metric-svg metric-svg-uv" viewBox="0 0 64 64" aria-hidden="true">
-          <g class="metric-sun-rays" stroke="currentColor" stroke-width="${level >= 4 ? "5.5" : "4"}" stroke-linecap="round" opacity="${0.32 + level * 0.13}">
-            <path d="M32 5v10M32 49v10M5 32h10M49 32h10M12 12l7 7M45 45l7 7M52 12l-7 7M19 45l-7 7"/>
-          </g>
-          <circle class="metric-sun-core" cx="32" cy="32" r="${13 + level}" fill="currentColor"/>
-          ${level === 5 ? '<path d="M32 20v16" stroke="#fff" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="44" r="2.5" fill="#fff"/>' : ""}
-        </svg>
-      `;
-    }
-
-    if (indicator.metric === "dew_point") {
-      return `
-        <svg class="metric-svg metric-svg-dew" viewBox="0 0 64 64" aria-hidden="true">
-          <path class="metric-drop-shape" d="M32 7C21 21 14 31 14 42a18 18 0 0 0 36 0c0-11-7-21-18-35Z" fill="currentColor" opacity="${level <= 2 ? "0.72" : "1"}"/>
-          ${level <= 3 ? '<circle cx="25" cy="42" r="2.8" fill="#fff" opacity="0.78"/>' : ""}
-          ${level === 3 ? '<circle cx="38" cy="47" r="2.4" fill="#fff" opacity="0.7"/>' : ""}
-          ${level >= 4 ? '<path class="metric-steam" d="M19 18c7-4 11 4 18 0M17 28c9-5 15 5 29 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.78"/>' : ""}
-          ${level === 5 ? '<path class="metric-steam metric-steam-extra" d="M20 38c7-4 13 4 26 0" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.78"/>' : ""}
-        </svg>
-      `;
-    }
-
-    if (indicator.metric === "pressure") {
-      const angle = -56 + (level - 1) * 28;
-
-      return `
-        <svg class="metric-svg metric-svg-pressure" viewBox="0 0 64 64" aria-hidden="true">
-          <path d="M14 42a18 18 0 1 1 36 0" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity="0.42"/>
-          <path d="M22 42a10 10 0 1 1 20 0" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
-          <path class="metric-gauge-needle" d="M32 42 32 24" stroke="currentColor" stroke-width="4" stroke-linecap="round" transform="rotate(${angle} 32 42)"/>
-          <circle cx="32" cy="42" r="4" fill="currentColor"/>
-        </svg>
-      `;
-    }
-
-    if (indicator.metric === "rain") {
-      const drops = [
-        '<path class="metric-rain-drop" d="M26 39l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
-        '<path class="metric-rain-drop drop-two" d="M37 39l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
-        '<path class="metric-rain-drop drop-three" d="M48 39l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>',
-        '<path class="metric-rain-drop drop-four" d="M31 50l-4 8" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>'
-      ].slice(0, Math.max(0, level - 1)).join("");
-
-      return `
-        <svg class="metric-svg metric-svg-rain" viewBox="0 0 64 64" aria-hidden="true">
-          <g class="metric-cloud">
-            <circle cx="25" cy="28" r="11" fill="currentColor" opacity="0.45"/>
-            <circle cx="38" cy="24" r="14" fill="currentColor" opacity="0.55"/>
-            <rect x="17" y="29" width="32" height="14" rx="7" fill="currentColor" opacity="0.55"/>
-          </g>
-          ${drops}
-        </svg>
-      `;
-    }
-
-    if (indicator.metric === "illuminance") {
-      return `
-        <svg class="metric-svg metric-svg-light" viewBox="0 0 64 64" aria-hidden="true">
-          <circle class="metric-sun-core" cx="28" cy="28" r="${10 + level}" fill="currentColor"/>
-          <g class="metric-light-rays" stroke="currentColor" stroke-width="${2 + level * 0.4}" stroke-linecap="round" opacity="${0.25 + level * 0.13}">
-            <path d="M28 5v8M28 43v8M5 28h8M43 28h8M11 11l6 6M39 39l6 6M45 11l-6 6M17 39l-6 6"/>
-          </g>
-          <path class="metric-light-beam" d="M39 36 55 50" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity="0.45"/>
-        </svg>
-      `;
-    }
-
-    return `
-      <svg class="metric-svg metric-svg-rain-chance" viewBox="0 0 64 64" aria-hidden="true">
-        <g class="metric-cloud">
-          <circle cx="25" cy="27" r="11" fill="currentColor" opacity="0.42"/>
-          <circle cx="39" cy="23" r="14" fill="currentColor" opacity="0.54"/>
-          <rect x="17" y="29" width="34" height="14" rx="7" fill="currentColor" opacity="0.54"/>
-        </g>
-        <path class="metric-rain-drop" d="M29 42l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-        ${level >= 3 ? '<path class="metric-rain-drop drop-two" d="M42 42l-4 9" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' : ""}
-        ${level >= 5 ? '<path class="metric-rain-drop drop-three" d="M35 51l-4 8" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' : ""}
-        <text x="44" y="58" fill="currentColor" font-size="14" font-weight="800" text-anchor="middle">%</text>
-      </svg>
     `;
   }
 
@@ -1073,11 +986,18 @@ class EcowittWs90Card extends HTMLElement {
   }
 
   _renderWindMetric(label, field, beaufort) {
+    const forceClass = beaufort?.name?.length > 10 ? " is-long" : "";
+
     return `
       <button class="wind-metric" ${entityDataAttr(field.entityId)}>
         <span>${escapeHtml(label)}</span>
         <strong>${escapeHtml(field.value)}</strong>
-        ${beaufort ? `<small>Bft ${beaufort.score} - ${escapeHtml(beaufort.name)}</small>` : ""}
+        ${beaufort ? `
+          <span class="wind-force${forceClass}">
+            <small>Bft ${beaufort.score}</small>
+            <b>${escapeHtml(beaufort.name)}</b>
+          </span>
+        ` : ""}
       </button>
     `;
   }
@@ -1258,7 +1178,7 @@ class EcowittWs90Card extends HTMLElement {
       .temperature .label,
       .summary-item span,
       .field-label,
-      .wind-metric span {
+      .wind-metric > span:not(.wind-force) {
         color: var(--secondary-text-color, #727272);
         font-size: calc(11px * var(--scale));
         line-height: 1.2;
@@ -1327,7 +1247,7 @@ class EcowittWs90Card extends HTMLElement {
 
       .wind-values {
         display: grid;
-        gap: calc(2px * var(--scale));
+        gap: calc(4px * var(--scale));
       }
 
       .wind-metric {
@@ -1338,7 +1258,7 @@ class EcowittWs90Card extends HTMLElement {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         min-width: 0;
-        padding: calc(5px * var(--scale)) 0 0;
+        padding: calc(5px * var(--scale)) 0 calc(2px * var(--scale));
         text-align: left;
       }
 
@@ -1352,6 +1272,36 @@ class EcowittWs90Card extends HTMLElement {
       .wind-metric small {
         grid-column: 1 / -1;
         margin-top: calc(2px * var(--scale));
+      }
+
+      .wind-force {
+        display: grid;
+        gap: calc(1px * var(--scale));
+        grid-column: 1 / -1;
+        margin-top: calc(3px * var(--scale));
+        min-width: 0;
+      }
+
+      .wind-force small {
+        color: var(--secondary-text-color, #727272);
+        font-size: calc(10px * var(--scale));
+        line-height: 1;
+        margin: 0;
+      }
+
+      .wind-force b {
+        color: var(--primary-text-color, #1d1d1f);
+        display: block;
+        font-size: calc(29px * var(--scale));
+        font-weight: 760;
+        letter-spacing: 0;
+        line-height: 0.92;
+        overflow-wrap: anywhere;
+      }
+
+      .wind-force.is-long b {
+        font-size: calc(21px * var(--scale));
+        line-height: 0.95;
       }
 
       .weather-description,
@@ -1585,55 +1535,39 @@ class EcowittWs90Card extends HTMLElement {
 
       .metric-status {
         align-items: center;
-        background: rgba(127, 127, 127, 0.08);
-        border: 1px solid rgba(127, 127, 127, 0.12);
-        border-radius: calc(999px * var(--scale));
         display: grid;
-        gap: calc(2px * var(--scale));
-        grid-template-rows: repeat(3, calc(7px * var(--scale)));
+        grid-template-rows: repeat(3, calc(10px * var(--scale)));
         justify-content: center;
         margin-left: calc(6px * var(--scale));
-        padding: calc(4px * var(--scale)) calc(3px * var(--scale));
-        width: calc(15px * var(--scale));
+        min-height: calc(30px * var(--scale));
+        width: calc(18px * var(--scale));
       }
 
-      .status-light {
-        border-radius: 50%;
-        display: block;
-        height: calc(7px * var(--scale));
-        opacity: 0.2;
-        width: calc(7px * var(--scale));
+      .status-arrow,
+      .status-normal {
+        opacity: 0;
       }
 
-      .status-red {
-        background: #d93025;
-      }
-
-      .status-yellow {
-        background: #fbbc04;
-      }
-
-      .status-green {
-        background: #188038;
-      }
-
-      .metric-status-red {
+      .status-arrow {
         color: #d93025;
+        font-size: calc(13px * var(--scale));
+        font-weight: 900;
+        line-height: calc(10px * var(--scale));
+        text-align: center;
       }
 
-      .metric-status-yellow {
-        color: #fbbc04;
+      .status-normal {
+        background: #188038;
+        border-radius: 50%;
+        box-shadow: 0 0 calc(7px * var(--scale)) rgba(24, 128, 56, 0.4);
+        height: calc(8px * var(--scale));
+        justify-self: center;
+        width: calc(8px * var(--scale));
       }
 
-      .metric-status-green {
-        color: #188038;
-      }
-
-      .metric-status-red .status-red,
-      .metric-status-yellow .status-yellow,
-      .metric-status-green .status-green {
-        box-shadow: 0 0 calc(7px * var(--scale)) currentColor;
-        color: currentColor;
+      .metric-status-high .status-arrow-high,
+      .metric-status-low .status-arrow-low,
+      .metric-status-normal .status-normal {
         opacity: 1;
       }
 
@@ -2048,31 +1982,26 @@ function getDanishSeason(date = new Date()) {
 }
 
 function seasonalStatusForValue(value, range) {
-  if (Number.isFinite(range.yellowMax)) {
-    if (value <= range.max) {
-      return "green";
-    }
-
-    return value <= range.yellowMax ? "yellow" : "red";
-  }
-
   const min = Number.isFinite(range.min) ? range.min : Number.NEGATIVE_INFINITY;
   const max = Number.isFinite(range.max) ? range.max : Number.POSITIVE_INFINITY;
 
-  if (value >= min && value <= max) {
-    return "green";
+  if (value < min) {
+    return "low";
   }
 
-  const fallbackTolerance = Number.isFinite(min) && Number.isFinite(max)
-    ? Math.max(1, (max - min) * 0.75)
-    : 1;
-  const tolerance = Number.isFinite(range.tolerance) ? range.tolerance : fallbackTolerance;
+  if (value > max) {
+    return "high";
+  }
 
-  return value >= min - tolerance && value <= max + tolerance ? "yellow" : "red";
+  return "normal";
 }
 
 function seasonalRangeText(range) {
   if (Number.isFinite(range.min) && Number.isFinite(range.max)) {
+    if (range.min === range.max) {
+      return metricValueText(range.max, range.unit);
+    }
+
     return `${metricValueText(range.min, "")}-${metricValueText(range.max, range.unit)}`;
   }
 
