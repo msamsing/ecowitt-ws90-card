@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.1.5";
+const CARD_VERSION = "0.1.6";
 
 const FIELD_DEFINITIONS = [
   {
@@ -240,6 +240,7 @@ const SEASON_DAYLIGHT = {
   autumn: { sunrise: 7, sunset: 18 }
 };
 const METRIC_STATUS_LABELS = {
+  temperature: "Temperatur",
   dew_point: "Dugpunkt",
   pressure: "Lufttryk",
   rain: "Nedbør",
@@ -253,6 +254,12 @@ const METRIC_STATUS_TEXT = {
   low: "lavere end årstidens normalområde"
 };
 const SEASONAL_METRIC_RANGES = {
+  temperature: {
+    winter: { min: -2, max: 6, unit: "°C" },
+    spring: { min: 5, max: 16, unit: "°C" },
+    summer: { min: 13, max: 24, unit: "°C" },
+    autumn: { min: 5, max: 15, unit: "°C" }
+  },
   dew_point: {
     winter: { min: -3, max: 3, unit: "°C" },
     spring: { min: 2, max: 8, unit: "°C" },
@@ -534,6 +541,9 @@ class EcowittWs90Card extends HTMLElement {
     const weatherDescription = this._getWeatherDescription(summary, wetness);
     const rainChance = this._getRainChance(summary);
     const aiSummary = this._getAiSummary(summary, wetness, beaufort, windDirection);
+    const temperatureIndicator = this._config.show_metric_icons === false
+      ? undefined
+      : metricIndicatorFor("temperature", summary.temperature);
     const scale = this._getScale();
 
     this.shadowRoot.innerHTML = `
@@ -561,7 +571,10 @@ class EcowittWs90Card extends HTMLElement {
                 </div>
                 <div class="temperature">
                   <span class="label">Nu</span>
-                  <strong>${summary.temperature.value}</strong>
+                  <span class="temperature-value-row">
+                    <strong>${summary.temperature.value}</strong>
+                    ${temperatureIndicator ? this._renderMetricIndicator(temperatureIndicator) : ""}
+                  </span>
                   <small>${summary.humidity.value !== "—" ? `Luftfugtighed ${summary.humidity.value}` : "Luftfugtighed —"}</small>
                 </div>
               </button>
@@ -1181,6 +1194,14 @@ class EcowittWs90Card extends HTMLElement {
         gap: calc(3px * var(--scale));
       }
 
+      .temperature-value-row {
+        align-items: center;
+        display: flex;
+        gap: calc(8px * var(--scale));
+        justify-content: space-between;
+        min-width: 0;
+      }
+
       .temperature .label,
       .summary-item span,
       .field-label,
@@ -1192,10 +1213,16 @@ class EcowittWs90Card extends HTMLElement {
 
       .temperature strong {
         display: block;
+        min-width: 0;
         font-size: calc(34px * var(--scale));
         font-weight: 740;
         letter-spacing: 0;
         line-height: 0.95;
+        overflow-wrap: anywhere;
+      }
+
+      .temperature .metric-status {
+        margin-left: 0;
       }
 
       .temperature small,
@@ -2029,6 +2056,17 @@ function metricRangeForTime(metric, range, seasonKey, date = new Date()) {
       ...range,
       min: roundToOneDecimal(Math.max(0, range.min * uvFactor * 0.5)),
       max: roundToOneDecimal(Math.max(0.3, range.max * uvFactor)),
+      timeAdjusted: true
+    };
+  }
+
+  if (metric === "temperature") {
+    const shift = roundToOneDecimal(-3 + factor * 4);
+
+    return {
+      ...range,
+      min: roundToOneDecimal(range.min + shift),
+      max: roundToOneDecimal(range.max + shift),
       timeAdjusted: true
     };
   }
