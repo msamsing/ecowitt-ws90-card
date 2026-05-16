@@ -2,7 +2,7 @@
  * Ecowitt WS-90 Card
  * Home Assistant Lovelace custom card
  */
-const CARD_VERSION = "0.1.9";
+const CARD_VERSION = "0.1.10";
 
 const FIELD_DEFINITIONS = [
   {
@@ -259,10 +259,10 @@ const METRIC_STATUS_TEXT = {
 };
 const SEASONAL_METRIC_RANGES = {
   temperature: {
-    winter: { min: -2, max: 6, unit: "°C" },
-    spring: { min: 5, max: 16, unit: "°C" },
-    summer: { min: 13, max: 24, unit: "°C" },
-    autumn: { min: 5, max: 15, unit: "°C" }
+    winter: { min: -2, max: 4, unit: "°C" },
+    spring: { min: 10, max: 16, unit: "°C" },
+    summer: { min: 16, max: 24, unit: "°C" },
+    autumn: { min: 8, max: 15, unit: "°C" }
   },
   dew_point: {
     winter: { min: -3, max: 3, unit: "°C" },
