@@ -2,7 +2,7 @@
  * Ecowitt WS-90 Card
  * Home Assistant Lovelace custom card
  */
-const CARD_VERSION = "0.1.8";
+const CARD_VERSION = "0.1.9";
 
 const FIELD_DEFINITIONS = [
   {
@@ -390,12 +390,8 @@ class EcowittWs90Card extends HTMLElement {
   }
 
   getGridOptions() {
-    const rows = this._getGridRows();
-
     return {
-      rows,
       columns: 12,
-      min_rows: Math.max(4, rows - 2),
       min_columns: 4
     };
   }
