@@ -2,7 +2,7 @@
  * Ecowitt WS-90 Card
  * Home Assistant Lovelace custom card
  */
-const CARD_VERSION = "0.1.7";
+const CARD_VERSION = "0.1.8";
 
 const FIELD_DEFINITIONS = [
   {
@@ -1671,32 +1671,35 @@ class EcowittWs90Card extends HTMLElement {
       .metric-status {
         align-items: center;
         display: grid;
-        grid-template-rows: repeat(3, calc(10px * var(--scale)));
         justify-content: center;
         margin-left: calc(6px * var(--scale));
         min-height: calc(30px * var(--scale));
+        overflow: visible;
+        place-items: center;
+        position: relative;
         width: calc(18px * var(--scale));
       }
 
       .status-arrow,
       .status-normal {
         opacity: 0;
+        position: absolute;
       }
 
       .status-arrow {
-        font-size: calc(13px * var(--scale));
+        font-size: calc(22px * var(--scale));
         font-weight: 900;
-        line-height: calc(10px * var(--scale));
+        line-height: 1;
         text-align: center;
       }
 
       .status-normal {
         background: #188038;
         border-radius: 50%;
-        box-shadow: 0 0 calc(7px * var(--scale)) rgba(24, 128, 56, 0.4);
-        height: calc(8px * var(--scale));
+        box-shadow: 0 0 calc(8px * var(--scale)) rgba(24, 128, 56, 0.42);
+        height: calc(12px * var(--scale));
         justify-self: center;
-        width: calc(8px * var(--scale));
+        width: calc(12px * var(--scale));
       }
 
       .metric-status-high .status-arrow-high,
