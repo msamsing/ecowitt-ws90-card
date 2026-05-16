@@ -2,7 +2,7 @@
  * Ecowitt WS-90 Card
  * Home Assistant Lovelace custom card
  */
-const CARD_VERSION = "0.1.6";
+const CARD_VERSION = "0.1.7";
 
 const FIELD_DEFINITIONS = [
   {
@@ -304,6 +304,9 @@ const SEASONAL_METRIC_RANGES = {
 const CARD_TAG = "ecowitt-ws90-card";
 const LEGACY_SHOW_WEATHER_KEY = ["show", "pira", "teweather", "_graphic"].join("");
 const LEGACY_WEATHER_ENTITY_KEY = ["pira", "teweather", "_entity"].join("");
+const DEFAULT_CARD_WIDTH = 424;
+const MIN_AUTO_SCALE = 0.5;
+const GRID_ROWS_MAX = 14;
 
 class EcowittWs90Card extends HTMLElement {
   constructor() {
@@ -313,14 +316,23 @@ class EcowittWs90Card extends HTMLElement {
     this._hass = undefined;
     this._contextUnsubscribe = undefined;
     this._renderQueued = false;
+    this._scaleQueued = false;
+    this._autoScale = 1;
+    this._resizeObserver = undefined;
   }
 
   connectedCallback() {
+    this._setupResizeObserver();
     this._requestHassContext();
     this._render();
   }
 
   disconnectedCallback() {
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = undefined;
+    }
+
     if (typeof this._contextUnsubscribe === "function") {
       this._contextUnsubscribe();
       this._contextUnsubscribe = undefined;
@@ -374,16 +386,37 @@ class EcowittWs90Card extends HTMLElement {
   }
 
   getCardSize() {
-    return this._config.compact ? 4 : 6;
+    return this._getGridRows();
   }
 
   getGridOptions() {
+    const rows = this._getGridRows();
+
     return {
-      rows: this._config.compact ? 4 : 6,
+      rows,
       columns: 12,
-      min_rows: 3,
-      min_columns: 6
+      min_rows: Math.max(4, rows - 2),
+      min_columns: 4
     };
+  }
+
+  _getGridRows() {
+    let rows = this._config.compact ? 5 : 6;
+
+    if (this._config.show_weather_description) {
+      rows += 2;
+    }
+
+    if (this._config.show_ai_summary) {
+      rows += 1;
+    }
+
+    if (Array.isArray(this._config.extra_entities) && this._config.extra_entities.length) {
+      const columns = this._config.compact ? 2 : 3;
+      rows += Math.ceil(this._config.extra_entities.length / columns);
+    }
+
+    return Math.min(GRID_ROWS_MAX, rows);
   }
 
   static getStubConfig() {
@@ -530,6 +563,53 @@ class EcowittWs90Card extends HTMLElement {
     });
   }
 
+  _setupResizeObserver() {
+    if (this._resizeObserver || typeof ResizeObserver !== "function") {
+      return;
+    }
+
+    this._resizeObserver = new ResizeObserver(() => this._queueAutoScaleUpdate());
+    this._resizeObserver.observe(this);
+  }
+
+  _queueAutoScaleUpdate() {
+    if (this._scaleQueued) {
+      return;
+    }
+
+    this._scaleQueued = true;
+    requestAnimationFrame(() => {
+      this._scaleQueued = false;
+      this._updateAutoScale();
+    });
+  }
+
+  _updateAutoScale() {
+    const rect = this.getBoundingClientRect();
+    const width = rect.width || this.offsetWidth || DEFAULT_CARD_WIDTH;
+    const widthScale = clamp(width / DEFAULT_CARD_WIDTH, MIN_AUTO_SCALE, 1);
+    let nextScale = widthScale;
+    const card = this.shadowRoot?.querySelector(".card");
+
+    if (card && rect.height > 0 && this._autoScale > 0) {
+      const contentHeight = card.scrollHeight;
+
+      if (contentHeight > rect.height + 2) {
+        nextScale = Math.min(nextScale, (rect.height / contentHeight) * this._autoScale);
+      }
+    }
+
+    nextScale = clamp(nextScale, MIN_AUTO_SCALE, 1);
+
+    if (Math.abs(nextScale - this._autoScale) < 0.005) {
+      return;
+    }
+
+    this._autoScale = nextScale;
+    this.style.setProperty("--ws90-auto-scale", nextScale.toFixed(3));
+    this._queueAutoScaleUpdate();
+  }
+
   _render() {
     if (!this.shadowRoot) {
       return;
@@ -616,6 +696,7 @@ class EcowittWs90Card extends HTMLElement {
         </div>
       </ha-card>
     `;
+    this._queueAutoScaleUpdate();
   }
 
   _getSections() {
@@ -1097,18 +1178,34 @@ class EcowittWs90Card extends HTMLElement {
       :host {
         display: block;
         container-type: inline-size;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
 
       ha-card {
         overflow: hidden;
         background: var(--ha-card-background, var(--card-background-color, #fff));
         color: var(--primary-text-color, #1d1d1f);
+        display: block;
+        height: 100%;
+        max-width: 100%;
+        width: 100%;
       }
 
       .card {
-        --auto-scale: 1;
+        --ws90-fallback-scale: 1;
+        --auto-scale: var(--ws90-auto-scale, var(--ws90-fallback-scale, 1));
         --scale: clamp(0.45, calc(var(--manual-scale, 1) * var(--auto-scale)), 1.2);
+        min-height: 100%;
+        min-width: 0;
         padding: calc(12px * var(--scale));
+        width: 100%;
       }
 
       .header {
@@ -1141,6 +1238,7 @@ class EcowittWs90Card extends HTMLElement {
         appearance: none;
         cursor: pointer;
         font: inherit;
+        min-width: 0;
       }
 
       .summary {
@@ -1679,31 +1777,31 @@ class EcowittWs90Card extends HTMLElement {
 
       @container (max-width: 400px) {
         .card {
-          --auto-scale: 0.94;
+          --ws90-fallback-scale: 0.94;
         }
       }
 
       @container (max-width: 360px) {
         .card {
-          --auto-scale: 0.86;
+          --ws90-fallback-scale: 0.86;
         }
       }
 
       @container (max-width: 320px) {
         .card {
-          --auto-scale: 0.78;
+          --ws90-fallback-scale: 0.78;
         }
       }
 
       @container (max-width: 280px) {
         .card {
-          --auto-scale: 0.7;
+          --ws90-fallback-scale: 0.7;
         }
       }
 
       @container (max-width: 240px) {
         .card {
-          --auto-scale: 0.62;
+          --ws90-fallback-scale: 0.62;
         }
       }
 
@@ -1720,7 +1818,7 @@ class EcowittWs90Card extends HTMLElement {
 
       @container (max-width: 220px) {
         .card {
-          --auto-scale: 0.54;
+          --ws90-fallback-scale: 0.54;
         }
       }
 
